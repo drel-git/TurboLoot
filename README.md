@@ -66,8 +66,8 @@ lootStackableMinPP=50
 sellUnlistedStackable=OFF
 sellUnlistedItems=OFF
 sellWildcards=OFF
-bankWildcards=ON
-StopLootWhenAttacked=OFF
+bankWildcards=OFF
+StopLootWhenAttacked=ON
 
 ; --Announcements (where messages go)--
 announceDefaultTo=e3bc
@@ -79,8 +79,6 @@ announceRunSummary=ON
 autoRsayInRaid=OFF
 
 ; --Advanced--
-followRestoreMode=NONE
-followRestoreDriver=AUTO
 lootNoDropPrompt=never
 lootNoDropPromptReset=always
 ```
@@ -106,8 +104,8 @@ lootNoDropPromptReset=always
 | `announceBankSellPerItem` | ON | Announce each item individually during bank/sell/tribute operations |
 | `autoRsayInRaid` | OFF | Auto-switch announcements to `/rsay` when in a raid |
 | `lootNoDropPrompt` | never | No-drop behavior: `prompt` (ask), `always` (grab it), `never` (leave it) |
-| `followRestoreMode` | NONE | Options: `FOLLOWME`, `CHASEME`, `NONE` - restore follow after looting |
-| `followRestoreDriver` | AUTO | Who to follow: `AUTO` (group leader) or a specific character name |
+| (LEGACY, not needed) `followRestoreMode` | NONE | Options: `FOLLOWME`, `CHASEME`, `NONE` - restore follow after looting |
+| (LEGACY, not needed) `followRestoreDriver` | AUTO | Who to follow: `AUTO` (group leader) or a specific character name |
 
 ### [ItemLimits] - Your Loot Rules
 
@@ -170,6 +168,7 @@ Instead of typing the full commands every time, set up short aliases. Open your 
 /turbotribute=/squelch /mac turboloot tribute
 /turbounload=/squelch /mac turboloot unload
 /turboreport=/squelch /mac turboloot report
+/turbohelp=/squelch /mac turboloot help
 ```
 
 Now you can just type `/turboloot`, `/turbosell`, `/turboreport`, etc.
