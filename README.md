@@ -355,7 +355,68 @@ If all your looters should follow the same rules, you don't need any of this. Ju
 
 ---
 
-## 9. Tips
+## 9. Wildcards
+
+The five defaults work exactly like before. To disable one, just change it to OFF:
+
+```ini
+[Wildcards]
+Spell:=ON
+Skill:=ON
+Song:=OFF
+Tome =ON
+Tome of =ON
+```
+
+### Add Custom Wildcards
+
+Use `Wildcard1=` through `Wildcard20=`. The value is the **prefix** to match (the beginning of the item name):
+
+```ini
+[Wildcards]
+Spell:=ON
+Skill:=ON
+Song:=ON
+Tome =ON
+Tome of =ON
+Wildcard1=Rune of 
+Wildcard2=Distillate of 
+Wildcard3=Draught of 
+```
+
+This would auto-loot any item whose name **starts with** "Rune of", "Distillate of", or "Draught of".
+
+> **Tip:** Include a trailing space after your prefix to avoid false matches. `Rune of ` (with space) matches "Rune of Fire" but won't match "Runestone". Without the space, `Rune of` would still work but could theoretically match "Rune offering" if such an item existed.
+
+### Disable All Wildcards
+
+Comment out or remove every line in `[Wildcards]`. TurboLoot will only loot items in your `[ItemLimits]` or caught by value thresholds.
+
+---
+
+## Quick Reference
+
+| What you want | What to do |
+|---|---|
+| Disable a built-in wildcard | `Song:=OFF` |
+| Add a custom wildcard | `Wildcard1=Rune of ` |
+| Remove a custom wildcard | Delete the line or comment it out with `;` |
+| Disable ALL wildcards | Comment out everything in `[Wildcards]` |
+| Check what's loaded | Set `debug=ON` and run the macro |
+| Multiple looters | Each INI (`turboloot.ini`, `turboloot2.ini`) has its own `[Wildcards]` section |
+
+---
+
+## Notes
+
+- Wildcards match the **beginning** of item names only (prefix matching).
+- Matching is **case-insensitive** — `Spell:` matches "SPELL: Gate" and "Spell: Gate".
+- Items explicitly listed in `[ItemLimits]` always take priority over wildcard matching. If you set `Spell: Gate=IGNORE` in ItemLimits, it will be ignored even though it matches the `Spell:` wildcard.
+- The `bankWildcards` and `sellWildcards` settings in `[Settings]` still control what happens to wildcard-matched items during bank/sell operations.
+
+---
+
+## 10. Tips
 
 - **Start simple.** Don't fill out the whole INI upfront if you're overwhelmed. Just set your `lootHighValueMinPP` threshold and use TurboKey to categorize items as you encounter them.
 - **Use `/turboreport` first.** Before your first `/turbosell`, run the report to preview what would be sold. Better safe than sorry.
