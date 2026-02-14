@@ -12,7 +12,7 @@ For most users, the easiest way to get started is to download the latest release
 
 👉 https://github.com/drel-git/TurboLoot/releases/latest
 
-This includes the latest macros and a clean starter INI.
+This includes the latest macros and a starter INI.
 
 ---
 
