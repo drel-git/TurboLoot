@@ -1,0 +1,57 @@
+| TurboKey.mac
+| Usage: /mac TurboKey KEEP|SELL|IGNORE|BANK|TRIBUTE|DESTROY
+| Writes to: turboloot.ini -> [ItemLimits] (same path as TurboLoot)
+| For DESTROY/IGNORE: marks in INI then destroys item on cursor
+| For others: marks in INI then /autoinv
+| Overwrites existing rule for the exact same item name
+
+Sub Main(string RuleIn)
+  /declare section string local ItemLimits
+  /declare rule string local ${String[${RuleIn}].Upper}
+  /declare itemName string local ${Cursor.Name}
+
+  | Resolve INI path (match turboLoot: Config first, then Macros)
+  /declare tlIniFile string local "../Config/turboloot.ini"
+  /if (!${Ini.File[${tlIniFile}].Exists}) {
+    /varset tlIniFile "../Macros/turboloot.ini"
+  }
+
+  /if (!${rule.Length}) {
+    /echo \arUsage: /mac TurboKey KEEP|SELL|IGNORE|BANK|TRIBUTE|ALL|DESTROY
+    /return
+  }
+
+  /if (!${rule.Equal[KEEP]} && !${rule.Equal[SELL]} && !${rule.Equal[IGNORE]} && !${rule.Equal[BANK]} && !${rule.Equal[TRIBUTE]} && !${rule.Equal[ALL]} && !${rule.Equal[DESTROY]}) {
+    /echo \arInvalid rule: \ay${rule}\ar. Valid: KEEP SELL IGNORE BANK TRIBUTE ALL DESTROY
+    /return
+  }
+
+  /if (!${itemName.Length} || ${itemName.Equal[NULL]}) {
+    /echo \arYou have nothing valid on your cursor.
+    /return
+  }
+
+  | Read any existing value (if present) so we can message clearly
+  /declare oldRule string local ${Ini["${tlIniFile}","${section}","${itemName}"]}
+
+  | This SETS the value; if the key already exists it is overwritten in-place
+  /ini "${tlIniFile}" "${section}" "${itemName}" "${rule}"
+
+  /if (${oldRule.Length}) {
+    /echo \atUpdated \ag${itemName}\at in \ag[${section}]\at: \ay${oldRule}\at -> \ag${rule}\at.
+  } else {
+    /echo \atAdded \ag${itemName}\at to \ag[${section}]\at as \ag${rule}\at.
+  }
+
+  | DESTROY and IGNORE: destroy item on cursor (fast path)
+  /if (${rule.Equal[DESTROY]} || ${rule.Equal[IGNORE]}) {
+    /destroy
+    /delay 1
+    /if (${Window[ConfirmationDialogBox].Open}) /notify ConfirmationDialogBox Yes_Button leftmouseup
+    /delay 5 !${Cursor.ID}
+    /return
+  }
+
+  | All other rules: return item to inventory
+  /autoinv
+/return
