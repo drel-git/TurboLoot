@@ -6,6 +6,14 @@
 
 > **TurboLoot** - Automated INI based corpse looting, selling, banking, tributing, and destroying for EverQuest EMUs (E3Next / MacroQuest)
 
+## 📥 Download
+
+For most users, the easiest way to get started is to download the latest release:
+
+👉 https://github.com/drel-git/TurboLoot/releases/latest
+
+This includes the latest macros and a clean starter INI.
+
 ---
 
 ## What's In the Box
@@ -14,7 +22,7 @@
 |---|---|
 | `TurboLoot.mac` | The main macro - runs all looting and inventory management |
 | `TurboKey.mac` | Quick-tag helper - pick up an item, run one command, and it's categorized in your INI |
-| `TurboLoot.ini` | Your personal rulebook - tells TurboLoot what to keep, sell, bank, trbute, trash, or ignore example INI |
+| `TurboLoot.ini` | Your personal rulebook - tells TurboLoot what to keep, sell, bank, tribute, trash, or ignore example INI |
 
 ---
 
@@ -348,7 +356,7 @@ If all your looters should follow the same rules, you don't need any of this. Ju
 
 ---
 
-## 8. Tips
+## 9. Tips
 
 - **Start simple.** Don't fill out the whole INI upfront if you're overwhelmed. Just set your `lootHighValueMinPP` threshold and use TurboKey to categorize items as you encounter them.
 - **Use `/turboreport` first.** Before your first `/turbosell`, run the report to preview what would be sold. Better safe than sorry.
