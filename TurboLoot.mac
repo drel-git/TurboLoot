@@ -6,7 +6,7 @@
 |   |_|   \____/|_|  \_\____/ \____/|______\____/ \____/  |_|
 |------------------------------------------------------------------>
 
-| turboLoot 3.7.2
+| turboLoot 3.7.3
 | Made by: <Lederhosen>, Drel, Jabs, Matde, Belakk, Veldrinn, Zhugg, Kroaking, Jeremy
 
 #turbo 100
@@ -244,6 +244,7 @@ Sub InitState
     /declare minSellUnlistedValue int outer
     /declare sellWildcards bool outer FALSE
     /declare bankWildcards bool outer FALSE
+    /declare wildcardPrefixes string outer ""
     /declare packNum int outer 0
     /declare slotNum int outer 0
     /declare maxSlots int outer 0
@@ -292,6 +293,7 @@ Sub InitStateMinimal
     /declare minSellUnlistedValue int outer
     /declare bankWildcards bool outer FALSE
     /declare sellWildcards bool outer FALSE
+    /declare wildcardPrefixes string outer ""
     /declare packNum int outer 0
     /declare slotNum int outer 0
     /declare tributeItemsMoved int outer 0
@@ -613,6 +615,8 @@ Sub LoadSettingsMinimal(string modeParam)
             /varset sellWildcards 0
         }
     }
+
+    /call LoadWildcards
 /return
 
 | ---------------------------------------------------------------------
@@ -1354,6 +1358,8 @@ Sub LoadSettings
         /echo [turboLoot] Add items to turboloot.ini [ItemLimits] section to loot specific items.
         /echo [turboLoot] Use "ALL" or "KEEP" or a number (#) to loot and keep; "SELL"/"BANK"/"TRIBUTE"/"DESTROY" for actions; "IGNORE" to skip.
     }
+
+    /call LoadWildcards
 /return
 
 | ---------------------------------------------------------------------
@@ -4476,23 +4482,50 @@ Sub LootAndDestroyCorpseItem(int lootSlot, string destroyName)
 | ---------------------------------------------------------------------
 | HELPER FUNCTIONS
 | ---------------------------------------------------------------------
-| WILDCARD DETECTION (SPELL:, SKILL:, TOME, SONG:)
+| WILDCARD DETECTION (checks against prefixes loaded from [Wildcards] INI section)
 | ---------------------------------------------------------------------
 Sub IsWildcardItem(string name)
+    | Checks item name against all prefixes loaded from [Wildcards] INI section.
+    | wildcardPrefixes format: |6:SPELL:||5:SONG:||8:TOME OF |
+    /if (!${wildcardPrefixes.Length}) /return FALSE
+
     /declare u string local ${name.Upper}
+    /declare searchPos int local 1
+    /declare pipeEnd int local
+    /declare entry string local
+    /declare colonPos int local
+    /declare prefixLen int local
+    /declare prefix string local
+    /declare chunk string local
 
-    | Prefer strict prefix checks (most reliable)
-    /if (${u.Left[6].Equal[SPELL:]}) /return TRUE
-    /if (${u.Left[6].Equal[SKILL:]}) /return TRUE
-    /if (${u.Left[5].Equal[SONG:]})  /return TRUE
-    /if (${u.Left[5].Equal[TOME ]})  /return TRUE
-    /if (${u.Left[8].Equal[TOME OF ]}) /return TRUE
+    | Walk through each |LEN:PREFIX| entry
+    :nextWildcard
+    | Find the start of next entry (skip the leading pipe)
+    /varset searchPos ${Math.Calc[${searchPos}+1]}
+    /if (${searchPos} >= ${wildcardPrefixes.Length}) /return FALSE
 
-    | Optional: if you REALLY want "contains", use > 0 (not == 1)
-    | /if (${u.Find[SPELL:]} > 0) /return TRUE
-    | /if (${u.Find[SKILL:]} > 0) /return TRUE
-    | /if (${u.Find[SONG:]} > 0)  /return TRUE
+    | Get remaining string from current position
+    /varset chunk ${wildcardPrefixes.Mid[${searchPos},500]}
+    /if (!${chunk.Length}) /return FALSE
 
+    | Find the closing pipe
+    /varset pipeEnd ${chunk.Find[|]}
+    /if (!${pipeEnd} || ${pipeEnd} < 3) /return FALSE
+
+    /varset entry ${chunk.Left[${Math.Calc[${pipeEnd}-1]}]}
+    /varset searchPos ${Math.Calc[${searchPos}+${pipeEnd}-1]}
+
+    | Parse LEN:PREFIX
+    /varset colonPos ${entry.Find[:]}
+    /if (!${colonPos}) /goto :nextWildcard
+
+    /varset prefixLen ${Int[${entry.Left[${Math.Calc[${colonPos}-1]}]}]}
+    /if (${prefixLen} < 1 || ${prefixLen} > ${u.Length}) /goto :nextWildcard
+
+    /varset prefix ${entry.Mid[${Math.Calc[${colonPos}+1]},${prefixLen}]}
+    /if (${u.Left[${prefixLen}].Equal[${prefix}]}) /return TRUE
+
+    /goto :nextWildcard
 /return FALSE
 
 | ---------------------------------------------------------------------
@@ -5374,3 +5407,94 @@ Sub NavToIDWithDoorsAndNudges(int targetID, float stopDist, int maxTicks)
     }
 
     /goto :NavIDLoop
+
+| ---------------------------------------------------------------------
+| LOAD WILDCARDS FROM INI [Wildcards] SECTION
+| Reads prefixes from [Wildcards] and builds a pipe-delimited string
+| for IsWildcardItem to check against.
+| Format: |6:SPELL:||5:SONG:||8:TOME OF |
+| ---------------------------------------------------------------------
+Sub LoadWildcards
+    /if (${Defined[wildcardPrefixes]}) /varset wildcardPrefixes ""
+
+    | --- Built-in default prefixes (checked as keys in [Wildcards] section) ---
+    | To add a new built-in default, add a line below following the same pattern.
+    | Users can toggle these ON/OFF in their INI without editing this file.
+    /declare wcVal string local
+    /declare wcUpper string local
+    /declare wcLen int local
+
+    | Check: Spell:
+    /varset wcVal ${Ini[${iniFile},Wildcards,Spell:]}
+    /if (${wcVal.Length} && !${wcVal.Equal[NULL]} && !${wcVal.Equal[Null]} && !${wcVal.Equal[null]}) {
+        /varset wcUpper ${wcVal.Upper.Replace[ ,]}
+        /if (${wcUpper.Equal[ON]} || ${wcUpper.Equal[TRUE]} || ${wcUpper.Equal[YES]} || ${wcUpper.Equal[1]}) {
+            /varset wildcardPrefixes "${wildcardPrefixes}|6:SPELL:"
+            /if (${showDebug}) /echo [turboLoot] Wildcard loaded: "Spell:" (6 chars)
+        }
+    }
+
+    | Check: Skill:
+    /varset wcVal ${Ini[${iniFile},Wildcards,Skill:]}
+    /if (${wcVal.Length} && !${wcVal.Equal[NULL]} && !${wcVal.Equal[Null]} && !${wcVal.Equal[null]}) {
+        /varset wcUpper ${wcVal.Upper.Replace[ ,]}
+        /if (${wcUpper.Equal[ON]} || ${wcUpper.Equal[TRUE]} || ${wcUpper.Equal[YES]} || ${wcUpper.Equal[1]}) {
+            /varset wildcardPrefixes "${wildcardPrefixes}|6:SKILL:"
+            /if (${showDebug}) /echo [turboLoot] Wildcard loaded: "Skill:" (6 chars)
+        }
+    }
+
+    | Check: Song:
+    /varset wcVal ${Ini[${iniFile},Wildcards,Song:]}
+    /if (${wcVal.Length} && !${wcVal.Equal[NULL]} && !${wcVal.Equal[Null]} && !${wcVal.Equal[null]}) {
+        /varset wcUpper ${wcVal.Upper.Replace[ ,]}
+        /if (${wcUpper.Equal[ON]} || ${wcUpper.Equal[TRUE]} || ${wcUpper.Equal[YES]} || ${wcUpper.Equal[1]}) {
+            /varset wildcardPrefixes "${wildcardPrefixes}|5:SONG:"
+            /if (${showDebug}) /echo [turboLoot] Wildcard loaded: "Song:" (5 chars)
+        }
+    }
+
+    | Check: Tome  (note trailing space - prevents matching "Tomestone" etc.)
+    /varset wcVal ${Ini[${iniFile},Wildcards,Tome ]}
+    /if (${wcVal.Length} && !${wcVal.Equal[NULL]} && !${wcVal.Equal[Null]} && !${wcVal.Equal[null]}) {
+        /varset wcUpper ${wcVal.Upper.Replace[ ,]}
+        /if (${wcUpper.Equal[ON]} || ${wcUpper.Equal[TRUE]} || ${wcUpper.Equal[YES]} || ${wcUpper.Equal[1]}) {
+            /varset wildcardPrefixes "${wildcardPrefixes}|5:TOME "
+            /if (${showDebug}) /echo [turboLoot] Wildcard loaded: "Tome " (5 chars)
+        }
+    }
+
+    | Check: Tome of  (note trailing space)
+    /varset wcVal ${Ini[${iniFile},Wildcards,Tome of ]}
+    /if (${wcVal.Length} && !${wcVal.Equal[NULL]} && !${wcVal.Equal[Null]} && !${wcVal.Equal[null]}) {
+        /varset wcUpper ${wcVal.Upper.Replace[ ,]}
+        /if (${wcUpper.Equal[ON]} || ${wcUpper.Equal[TRUE]} || ${wcUpper.Equal[YES]} || ${wcUpper.Equal[1]}) {
+            /varset wildcardPrefixes "${wildcardPrefixes}|8:TOME OF "
+            /if (${showDebug}) /echo [turboLoot] Wildcard loaded: "Tome of " (8 chars)
+        }
+    }
+
+    | --- User-added custom wildcards: Wildcard1 through Wildcard20 ---
+    | In the INI, users set: Wildcard1=Rune of   (the VALUE is the prefix to match)
+    /declare i int local
+    /declare rawPrefix string local
+    /for i 1 to 20
+        /varset wcVal ${Ini[${iniFile},Wildcards,Wildcard${i}]}
+        /if (${wcVal.Length} && !${wcVal.Equal[NULL]} && !${wcVal.Equal[Null]} && !${wcVal.Equal[null]}) {
+            /varset rawPrefix ${StripIniComment[${wcVal}]}
+            /if (${rawPrefix.Length}) {
+                /varset wcLen ${rawPrefix.Length}
+                /varset wildcardPrefixes "${wildcardPrefixes}|${wcLen}:${rawPrefix.Upper}"
+                /if (${showDebug}) /echo [turboLoot] Wildcard loaded: "${rawPrefix}" (${wcLen} chars)
+            }
+        }
+    /next i
+
+    | Finalize
+    /if (${wildcardPrefixes.Length}) {
+        /varset wildcardPrefixes "${wildcardPrefixes}|"
+        /echo [turboLoot] Wildcards active: ${wildcardPrefixes}
+    } else {
+        /echo [turboLoot] No wildcards loaded from [Wildcards] section.
+    }
+/return
