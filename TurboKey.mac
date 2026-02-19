@@ -1,4 +1,4 @@
-| TurboKey.mac v3.7.4
+| TurboKey.mac v3.7.3
 | Usage: /mac TurboKey KEEP|SELL|IGNORE|BANK|TRIBUTE|DESTROY
 | Writes to: turboloot.ini -> [ItemLimits] (same path as TurboLoot)
 | For DESTROY/IGNORE: marks in INI then destroys item on cursor

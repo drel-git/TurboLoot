@@ -6,9 +6,8 @@
 |   |_|   \____/|_|  \_\____/ \____/|______\____/ \____/  |_|
 |------------------------------------------------------------------>
 
-| turboLoot 3.7.4
+| turboLoot 3.7.3
 | Made by: <Lederhosen>, Drel, Jabs, Matde, Belakk, Veldrinn, Zhugg, Kroaking, Jeremy
-| lootTribMinValue: unlisted items with tribute/value >= threshold looted as TRIBUTE
 
 #turbo 100
 #event Unlootable "You may not loot this corpse at this time."
@@ -63,15 +62,12 @@ Sub Main
     /if (${mode.Equal[SELL]}) {
         /call InitStateMinimal
         /call LoadSettingsMinimal SELL
-        /call PauseAFollow
         /declare dryRun bool outer ${isDryRun}
         /if (${isDryRun}) {
             /call AutoSellDryRun FALSE
         } else {
             /call AutoSell
-            /if (${returnToLeader}) /call NavBackToGroupLeader
         }
-        /call UnpauseAFollow
         /call Cleanup
         /return
     }
@@ -90,10 +86,7 @@ Sub Main
     /if (${mode.Equal[BANK]}) {
         /call InitStateMinimal
         /call LoadSettingsMinimal BANK
-        /call PauseAFollow
         /call AutoBank
-        /if (${returnToLeader}) /call NavBackToGroupLeader
-        /call UnpauseAFollow
         /call Cleanup
         /return
     }
@@ -102,10 +95,7 @@ Sub Main
     /if (${mode.Equal[TRIBUTE]}) {
         /call InitStateMinimal
         /call LoadSettingsMinimal TRIBUTE
-        /call PauseAFollow
         /call AutoTribute
-        /if (${returnToLeader}) /call NavBackToGroupLeader
-        /call UnpauseAFollow
         /call Cleanup
         /return
     }
@@ -123,10 +113,13 @@ Sub Main
     | Route to unload mode if requested (minimal initialization for speed)
     | Unload runs: TRIBUTE -> BANK -> SELL -> DESTROY
     /if (${mode.Equal[UNLOAD]}) {
+        /if (${isDryRun}) {
+            /echo \at[turboLoot] \arERROR: Dry-run mode not supported for unload command.
+            /echo \at[turboLoot] \ayUse \ag/mac turboloot sell dryrun\aw to preview items that would be sold.
+            /return
+        }
         /call InitStateMinimal
         /call LoadSettingsMinimal TRIBUTE
-        /declare unloadReturn bool local ${returnToLeader}
-        /call PauseAFollow
         /call AutoTribute
         /call LoadSettingsMinimal BANK
         /call AutoBank
@@ -134,8 +127,6 @@ Sub Main
         /call AutoSell
         /call AutoDestroy
         /call PrintUnloadSummary
-        /if (${unloadReturn}) /call NavBackToGroupLeader
-        /call UnpauseAFollow
         /call Cleanup
         /return
     }
@@ -196,7 +187,7 @@ Sub InitState
     /declare lootHighValueAll bool outer FALSE
     /declare minStackableValue int outer
     /declare lootStackable bool outer
-    /declare announceSkipped int outer 1
+    /declare announceSkipped bool outer
     /declare announceLooted bool outer
     /declare announceMethod string outer
     /declare announceLore bool outer
@@ -232,7 +223,6 @@ Sub InitState
     /declare lootslot int outer
     /declare lootName string outer
     /declare itemValue int outer
-    /declare tribVal int outer 0
     /declare lootNoDropPrompt string outer
     /declare lootNoDropPromptReset string outer
 
@@ -243,7 +233,6 @@ Sub InitState
     /declare itemLimitUpper string outer
     /declare closeTries int outer 0
     /declare currentCount int outer 0
-    /declare meetsTribThreshold bool outer FALSE
 
     | Variables for sell functionality (prevent redeclaration errors)
     /declare itemsSold int outer 0
@@ -276,7 +265,6 @@ Sub InitState
     /declare announceInventoryAlmostFull int outer
     | Per-run warning dedupe for container autobank errors (keyed by container name)
     /declare BankContainerWarnedKeys string outer ""
-    /declare lootTribMinValue int outer 0
 /return
 
 || ---------------------------------------------------------------------
@@ -331,7 +319,6 @@ Sub InitStateMinimal
     | Note: dryRun is declared in Main when needed, not here to avoid conflicts
     /declare dryRunSellCount int outer 0
     /declare dryRunSellTotalCopper int outer 0
-    /declare returnToLeader bool outer FALSE
 /return
 
 || ---------------------------------------------------------------------
@@ -628,16 +615,6 @@ Sub LoadSettingsMinimal(string modeParam)
             /varset sellWildcards 0
         }
     }
-    | returnToLeader - nav back to group leader after sell/bank/tribute/unload
-    /declare rtlSetting string local ${IniGetStringOrEmpty[Settings,returnToLeader]}
-    /if (${rtlSetting.Length}) {
-        /declare rtlUpper string local ${rtlSetting.Upper.Replace[ ,]}
-        /if (${rtlUpper.Equal[ON]} || ${rtlUpper.Equal[TRUE]} || ${rtlUpper.Equal[YES]} || ${rtlUpper.Equal[1]}) {
-            /varset returnToLeader TRUE
-        } else {
-            /varset returnToLeader FALSE
-        }
-    }
 
     /call LoadWildcards
 /return
@@ -801,21 +778,6 @@ Sub LoadSettings
         /varset lootStackable ${Int[${IniGetStringOrEmpty[Settings,LootStackable]}]}
         /varset minStackableValue ${Int[${IniGetStringOrEmpty[Settings,MinStackableValue]}]}
         /if (!${minStackableValue} || ${minStackableValue} < 0) /varset minStackableValue 0
-    }
-
-
-    | lootTribMinValue - loot unlisted items that meet a minimum tribute value threshold
-    /declare lootTribMinValueSetting string local ${IniGetStringOrEmpty[Settings,lootTribMinValue]}
-    /if (${lootTribMinValueSetting.Length}) {
-        /declare lootTribMinUpper string local ${lootTribMinValueSetting.Upper.Replace[ ,]}
-        /if (${lootTribMinUpper.Equal[OFF]} || ${lootTribMinUpper.Equal[NO]} || ${lootTribMinUpper.Equal[FALSE]} || ${lootTribMinUpper.Equal[0]}) {
-            /varset lootTribMinValue 0
-        } else {
-            /varset lootTribMinValue ${Int[${lootTribMinValueSetting}]}
-            /if (${lootTribMinValue} < 0) /varset lootTribMinValue 0
-        }
-    } else {
-        /varset lootTribMinValue 0
     }
 
     | Aliases supported:
@@ -1130,11 +1092,8 @@ Sub LoadSettings
                 /varset announceSkippedMethod ${announceSkipToSetting}
             }
         } else {
-            /declare legacyAnnounceSkipped string local ${IniGetStringOrEmpty[Settings,announceSkipped]}
-            /varset announceSkipped ${Int[${legacyAnnounceSkipped}]}
+            /varset announceSkipped ${Int[${IniGetStringOrEmpty[Settings,announceSkipped]}]}
             /varset announceSkippedMethod ${IniGetStringOrEmpty[Settings,announceSkippedMethod]}
-            | Default: announce skips when legacy key not set (user hasn't explicitly disabled)
-            /if (!${legacyAnnounceSkipped.Length}) /varset announceSkipped 1
         }
     }
 
@@ -1379,7 +1338,7 @@ Sub LoadSettings
         /varset announceBankSell "echo"
     }
 
-    /if (${showDebug}) /echo ${tlTag} \at[INI] \ag${iniFile}
+    /echo ${tlTag} \at[INI] \ag${iniFile}
     /if (${enableHighValue} && ${lootHighValueAll}) {
         /if (${showDebug}) /echo [turboLoot] High-value looting ENABLED: Looting ALL non-stackable items (no value threshold)
     } else /if (${enableHighValue} && ${minLootValue} > 0) {
@@ -1390,16 +1349,12 @@ Sub LoadSettings
     }
     /if (${lootStackable} && ${minStackableValue} > 0) {
         /if (${showDebug}) /echo [turboLoot] Stackable value threshold ENABLED: Looting stackable items worth ${minStackableValue} platinum or more
-    } else     /if (${lootStackable} && ${minStackableValue} <= 0) {
+    } else /if (${lootStackable} && ${minStackableValue} <= 0) {
         /if (${showDebug}) /echo [turboLoot] Stackable looting ENABLED: Looting all stackable items (no value threshold)
-    }
-    /if (${lootTribMinValue} > 0 && ${showDebug}) {
-        /echo [turboLoot] lootTribMinValue=${lootTribMinValue}: Looting unlisted items with tribute>=${lootTribMinValue} or value>=${lootTribMinValue}pp as TRIBUTE
     }
     
     /if (${showDebug}) {
-        /echo [turboLoot] NOTE: Only items listed in [ItemLimits] will be looted (unless wildcard/high-value/stackable/lootTribMinValue).
-        /echo [turboLoot] lootTribMinValue=${lootTribMinValue} - unlisted items with tribute>=${lootTribMinValue} (or value>=${lootTribMinValue}pp) looted as TRIBUTE
+        /echo [turboLoot] NOTE: Only items listed in [ItemLimits] section will be looted (unless wildcard/high-value/stackable).
         /echo [turboLoot] Add items to turboloot.ini [ItemLimits] section to loot specific items.
         /echo [turboLoot] Use "ALL" or "KEEP" or a number (#) to loot and keep; "SELL"/"BANK"/"TRIBUTE"/"DESTROY" for actions; "IGNORE" to skip.
     }
@@ -1432,9 +1387,7 @@ Sub PreChecks
     /declare corpseCheckRetries int local 0
     /declare maxCorpseCheckRetries int local 2
 :checkCorpses
-    /declare corpseCount int local ${SpawnCount[npccorpse radius ${lootDistance}]}
-    /if (!${corpseCount}) /varset corpseCount ${SpawnCount[corpse radius ${lootDistance}]}
-    /if (!${corpseCount}) {
+    /if (!${SpawnCount[npccorpse radius ${lootDistance}]}) {
         /varcalc corpseCheckRetries ${corpseCheckRetries}+1
         /if (${corpseCheckRetries} <= ${maxCorpseCheckRetries}) {
             /if (${showDebug}) /echo [turboLoot] No corpses found within ${lootDistance}. Attempting spawn list refresh (retry ${corpseCheckRetries}/${maxCorpseCheckRetries})...
@@ -1480,10 +1433,8 @@ Sub PauseE3Logic
 | ---------------------------------------------------------------------
 Sub BeginLooting
     /hidecorpse looted
-    /echo ${tlTag} \ag[${Time}] Started Looting \at(range: ${lootDistance} ft)
+    /echo ${tlTag} \ag[${Time}] Started Looting
 
-    /declare corpseCount int local 0
-    /declare lookupName string local
     | Final sweep (optional): one extra retry pass when everything in range becomes alerted
     /declare finalSweepDone bool local FALSE
     /declare finalSweepNeeded bool local FALSE
@@ -1506,9 +1457,7 @@ Sub BeginLooting
         }
     }
 
-    /varset corpseCount ${SpawnCount[npccorpse radius ${lootDistance}]}
-    /if (!${corpseCount}) /varset corpseCount ${SpawnCount[corpse radius ${lootDistance}]}
-    /if (!${corpseCount}) {
+    /if (!${SpawnCount[npccorpse radius ${lootDistance}]}) {
         | If we've looted something, we're probably done. Otherwise, try refreshing spawn list once
         /if (!${DidLoot}) {
             /if (${showDebug}) /echo [turboLoot] No corpses found within ${lootDistance}. Attempting spawn list refresh...
@@ -1518,10 +1467,8 @@ Sub BeginLooting
             /delay 1
             /squelch /docommand #corpsefix
             /delay 1
-            | Re-check after refresh (try both npccorpse and corpse)
-            /varset corpseCount ${SpawnCount[npccorpse radius ${lootDistance}]}
-            /if (!${corpseCount}) /varset corpseCount ${SpawnCount[corpse radius ${lootDistance}]}
-            /if (${corpseCount}) {
+            | Re-check after refresh
+            /if (${SpawnCount[npccorpse radius ${lootDistance}]}) {
                 /if (${showDebug}) /echo [turboLoot] Spawn list refresh successful - found corpses
                 /goto :mainlootloop
             }
@@ -1538,9 +1485,7 @@ Sub BeginLooting
         /return
     }
     
-    /varset corpseCount ${SpawnCount[npccorpse noalert ${AlertIndex} radius ${lootDistance}]}
-    /if (!${corpseCount}) /varset corpseCount ${SpawnCount[corpse noalert ${AlertIndex} radius ${lootDistance}]}
-    /if (!${corpseCount}) {
+    /if (!${SpawnCount[npccorpse noalert ${AlertIndex} radius ${lootDistance}]}) {
         /if (${finalSweepEnabled} && ${finalSweepNeeded} && !${finalSweepDone}) {
             /varset finalSweepDone TRUE
             /if (${lootDistance} != ${sweepLootDistance}) /varset lootDistance ${sweepLootDistance}
@@ -1550,9 +1495,7 @@ Sub BeginLooting
         }
         /if (${showDebug}) /echo [turboLoot] All corpses in range are marked as alerted.
         /if (${DidLoot}) {
-            /varset corpseCount ${SpawnCount[npccorpse noalert ${AlertIndex} radius ${lootDistance}]}
-            /if (!${corpseCount}) /varset corpseCount ${SpawnCount[corpse noalert ${AlertIndex} radius ${lootDistance}]}
-            /if (!${corpseCount}) {
+            /if (!${SpawnCount[npccorpse noalert ${AlertIndex} radius ${lootDistance}]}) {
                 /if (${showDebug}) /echo [turboLoot] Still no unalerted corpses after brief check. Exiting.
                 /if (${Me.Grouped} && ${DidLoot}) /e3bc ${tlTag} [DONE LOOTING ${corpsesProcessed} CORPSES]
                 /if (${AlertIndex}) /squelch /alert clear ${AlertIndex}
@@ -1593,14 +1536,9 @@ Sub BeginLooting
     }
 
     /if (${Me.FreeInventory}) {
-        /varset corpseCount ${SpawnCount[npccorpse noalert ${AlertIndex} radius ${lootDistance}]}
-        /if (!${corpseCount}) /varset corpseCount ${SpawnCount[corpse noalert ${AlertIndex} radius ${lootDistance}]}
-        /if (${corpseCount} > 0) {
-            /if (${SpawnCount[npccorpse noalert ${AlertIndex} radius ${lootDistance}]} > 0) {
-                /target npccorpse noalert ${AlertIndex} radius ${lootDistance}
-            } else {
-                /target corpse noalert ${AlertIndex} radius ${lootDistance}
-            }
+        /if (${SpawnCount[npccorpse noalert ${AlertIndex} radius ${lootDistance}]} > 0) {
+            /target npccorpse noalert ${AlertIndex} radius ${lootDistance}
+            
             | If targeting failed but SpawnCount says corpses exist, try refreshing spawn list once per loop iteration
             /if (!${Target.ID} || !${Target.Type.Equal[Corpse]}) {
                 /declare targetingRefreshDone bool local FALSE
@@ -1613,11 +1551,9 @@ Sub BeginLooting
                     /squelch /docommand #corpsefix
                     /delay 1
                     /varset targetingRefreshDone TRUE
-                    | Retry targeting (try both spawn types)
+                    | Retry targeting
                     /if (${SpawnCount[npccorpse noalert ${AlertIndex} radius ${lootDistance}]} > 0) {
                         /target npccorpse noalert ${AlertIndex} radius ${lootDistance}
-                    } else /if (${SpawnCount[corpse noalert ${AlertIndex} radius ${lootDistance}]} > 0) {
-                        /target corpse noalert ${AlertIndex} radius ${lootDistance}
                     }
                 }
             }
@@ -1825,12 +1761,11 @@ Sub BeginLooting
 | ---------------------------------------------------------------------
 :processItems
     /varset loottotal ${Corpse.Items}
-    /if (${lootTribMinValue} > 0 && ${loottotal} > 0 && ${showDebug}) /echo [turboLoot] lootTribMinValue=${lootTribMinValue} active - will loot unlisted items with tribute/value >= threshold
 
     /for lootslot 1 to ${loottotal}
-        | Process events and clear cursor before each slot (prevents "cursor occupied" errors)
+        | Process any pending lore block FIRST - before checking loot window
+        | This handles the case where lore denial closed the loot window
         /doevents
-        /if (${Cursor.ID}) /call ForceClearCursor
         /if (${LoreBlocked}) {
             /if (${showDebug}) /echo [turboLoot] Lore block detected at start of loop for slot ${lootslot}
             | Add to denied cache using last attempted item name
@@ -1859,24 +1794,37 @@ Sub BeginLooting
             /continue
         }
         /varset itemValue ${Math.Calc[${Corpse.Item[${lootslot}].Value} / 1000]}
-        /varset tribVal ${Int[${Corpse.Item[${lootslot}].Tribute}]}
-        | ItemLimits lookup: use IniGetStringOrEmpty (same as Settings - strips comments, trims)
-        /varset lookupName ${TrimSpaces[${lootName}]}
-        /varset itemLimit ${IniGetStringOrEmpty[ItemLimits,${lookupName}]}
-        /if (!${itemLimit.Length}) /varset itemLimit ${IniGetStringOrEmpty[ItemLimits,${lookupName.Upper}]}
-        /if (!${itemLimit.Length}) /varset itemLimit ${IniGetStringOrEmpty[ItemLimits,${lookupName.Lower}]}
-        /if (!${itemLimit.Length}) /varset itemLimit ${IniGetStringOrEmpty[Item Limits,${lookupName}]}
+        | Direct INI lookup (like turboLoot359Final.mac) with case-insensitive fallback
+        | Try exact match first (optimized: only normalize if we got a result)
+        /varset itemLimit ${Ini[${iniFile},ItemLimits,${lootName}]}
+        | Only normalize if we got a result (skip unnecessary string operations)
         /if (${itemLimit.Length} && !${itemLimit.Equal[NULL]}) {
             /varset itemLimitUpper ${itemLimit.Upper}
             /varset itemLimitUpper ${itemLimitUpper.Replace[ ,]}
             /if (${itemLimitUpper.Equal[SKIP]}) /varset itemLimitUpper IGNORE
         } else {
-            /varset itemLimit ""
-            /varset itemLimitUpper ""
+            | Exact match failed, try uppercase
+            /varset itemLimit ${Ini[${iniFile},ItemLimits,${lootName.Upper}]}
+            /if (${itemLimit.Length} && !${itemLimit.Equal[NULL]}) {
+                /varset itemLimitUpper ${itemLimit.Upper}
+                /varset itemLimitUpper ${itemLimitUpper.Replace[ ,]}
+                /if (${itemLimitUpper.Equal[SKIP]}) /varset itemLimitUpper IGNORE
+            } else {
+                | Uppercase failed, try lowercase
+                /varset itemLimit ${Ini[${iniFile},ItemLimits,${lootName.Lower}]}
+                /if (${itemLimit.Length} && !${itemLimit.Equal[NULL]}) {
+                    /varset itemLimitUpper ${itemLimit.Upper}
+                    /varset itemLimitUpper ${itemLimitUpper.Replace[ ,]}
+                    /if (${itemLimitUpper.Equal[SKIP]}) /varset itemLimitUpper IGNORE
+                } else {
+                    | All lookups failed - clear itemLimit/itemLimitUpper
+                    /varset itemLimit ""
+                    /varset itemLimitUpper ""
+                }
+            }
         }
-        | Final check: clear if empty/NULL/0/NOTFOUND (like turboLoot359Final.mac does)
-        | NOTFOUND: MQ2 Ini returns this when key missing and no default given
-        /if (!${itemLimitUpper.Length} || ${itemLimitUpper.Equal[NULL]} || ${itemLimitUpper.Equal[0]} || ${itemLimitUpper.Equal[NOTFOUND]}) {
+        | Final check: clear if empty/NULL/0 (like turboLoot359Final.mac does)
+        /if (!${itemLimitUpper.Length} || ${itemLimitUpper.Equal[NULL]} || ${itemLimitUpper.Equal[0]}) {
             /varset itemLimit ""
             /varset itemLimitUpper ""
         }
@@ -1887,29 +1835,21 @@ Sub BeginLooting
         | IGNORE
         | -------------------------------------------------------------
         /if (${itemLimitUpper.Equal[IGNORE]}) {
-            /if (${showDebug}) /call Announce "${announceMethod}" "${tlTag} \aw[IGNORE] ${Corpse.Item[${lootslot}].ItemLink[CLICKABLE]} \at(ID: ${Target.ID})"
-            /varcalc itemsIgnored ${itemsIgnored}+1
-            /continue
-        }
+        /if (${showDebug}) /call Announce "${announceMethod}" "${tlTag} \aw[IGNORE] ${Corpse.Item[${lootslot}].ItemLink[CLICKABLE]} \at(ID: ${Target.ID})"
+        /varcalc itemsIgnored ${itemsIgnored}+1
+        /continue
+    }
 
         | -------------------------------------------------------------
         | DESTROY
         | -------------------------------------------------------------
     /if (${itemLimitUpper.Equal[DESTROY]}) {
-            | Check if this is a LORE item we already possess (inv + bank) - can't loot it to destroy it
-            /if (${Corpse.Item[${lootslot}].Lore}) {
-                /declare destroyLoreCount int local ${Math.Calc[${FindItemCount[=${lootName}]}+${FindItemBankCount[=${lootName}]}]}
-                /if (${destroyLoreCount} >= 1) {
-                    /call AnnounceSkipped "${Target.ID}:${lootslot}:${lootName}" "${tlTag} \ao[SKIP] ${Corpse.Item[${lootslot}].ItemLink[CLICKABLE]} \at(ID: ${Target.ID}) - LORE item already in inventory/bank (can't loot to destroy)"
-                    /continue
-                }
-            }
-            /if (${showDebug} || ${announceDestroyed}) /call Announce "${announceMethod}" "${tlTag} \ar[DESTROY] ${Corpse.Item[${lootslot}].ItemLink[CLICKABLE]} \at(ID: ${Target.ID})"
-            /call LootAndDestroyCorpseItem ${lootslot} "${lootName}"
-            /if (${Skip}) /goto :DoneLooting
-            /varset DidLootThisCorpse TRUE
-            /continue
-        }
+        /if (${showDebug} || ${announceDestroyed}) /call Announce "${announceMethod}" "${tlTag} \ar[DESTROY] ${Corpse.Item[${lootslot}].ItemLink[CLICKABLE]} \at(ID: ${Target.ID})"
+        /call LootAndDestroyCorpseItem ${lootslot} "${lootName}"
+        /if (${Skip}) /goto :DoneLooting
+        /varset DidLootThisCorpse TRUE
+        /continue
+    }
 
         | -------------------------------------------------------------
         | LORE-DENIED CACHE CHECK
@@ -1944,14 +1884,9 @@ Sub BeginLooting
         }
         
         | -------------------------------------------------------------
-        | HIGH-VALUE LOOTING (same logic as lootHighValueMinPP)
-        | Also: lootTribMinValue - loot unlisted items with tribute/value >= threshold (no itemLimit check, like minLootValue)
+        | HIGH-VALUE LOOTING
         | -------------------------------------------------------------
-        /varset meetsTribThreshold FALSE
-        /if (${lootTribMinValue} > 0 && (${tribVal} >= ${lootTribMinValue} || (${tribVal} == 0 && ${itemValue} >= ${lootTribMinValue}))) /varset meetsTribThreshold TRUE
-        /if (${showDebug} && ${lootTribMinValue} > 0) /echo [DEBUG] TRIBUTE-VALUE: ${lootName} trib=${tribVal} val=${itemValue} need=${lootTribMinValue} meets=${meetsTribThreshold}
-        | Enter on high-value (minLootValue) OR tribute (lootTribMinValue) - same logic, no itemLimit gate
-        /if (!${Corpse.Item[${lootslot}].Stackable} && (${enableHighValue} && (${lootHighValueAll} || (${minLootValue} > 0 && ${itemValue} >= ${minLootValue})) || (${meetsTribThreshold}))) {
+        /if (${enableHighValue} && !${Corpse.Item[${lootslot}].Stackable} && (${lootHighValueAll} || (${minLootValue} > 0 && ${itemValue} >= ${minLootValue}))) {
             | Check lore denied cache FIRST - skip if we already failed to loot this item
             /if (${Corpse.Item[${lootslot}].Lore} && ${LoreDeniedNames.Find[|${lootName}|]}) {
                 /if (${showDebug}) /echo [VALUE] Skipping ${lootName} - in LoreDeniedNames cache
@@ -1975,28 +1910,23 @@ Sub BeginLooting
             /if (${Corpse.Item[${lootslot}].Lore}) {
                 /varset currentCount ${Math.Calc[${FindItemCount[=${lootName}]}+${FindItemBankCount[=${lootName}]}]}
                 /if (${currentCount}>=1) {
-                    /call AnnounceSkipped "${Target.ID}:${lootslot}:${lootName}" "${tlTag} \ao[SKIP] ${Corpse.Item[${lootslot}].ItemLink[CLICKABLE]} \at(ID: ${Target.ID}) - Already have"
+                    /if (${showDebug} || ${announceSkipped} || ${announceLore}) {
+                        /call AnnounceSkipped "${Target.ID}:${lootslot}:${lootName}" "${tlTag} \ao[SKIP] ${Corpse.Item[${lootslot}].ItemLink[CLICKABLE]} \at(ID: ${Target.ID}) - Already have"
+                    }
                     /continue
                 }
             }
-            | Tribute path (lootTribMinValue): unlisted items meeting threshold - same as minLootValue logic
-            /if (${meetsTribThreshold} && !${itemLimitUpper.Length}) {
-                /call Announce "${announceMethod}" "${tlTag} \ag[TRIB-LOOT] ${Corpse.Item[${lootslot}].ItemLink[CLICKABLE]} \at(${If[${tribVal},tribute: ${tribVal},value: ${itemValue}pp]})"
-                /call CheckInventorySpace "${lootName}" ${lootslot}
-                /call LootTheItem ${lootslot} "${lootName}" 999999 "TRIBUTE"
-            } else {
-                /if (${showDebug}) /echo [VALUE] Found valuable item worth ${itemValue} platinum
-                /call LootHighValueItem ${lootslot}
-            }
+            /if (${showDebug}) /echo [VALUE] Found valuable item worth ${itemValue} platinum
+            /call LootHighValueItem ${lootslot}
             /if (${Skip}) /goto :DoneLooting
             /if (!${Corpse.Item[${lootslot}].ID}) /varset DidLootThisCorpse TRUE
             /continue
         }
 
         | -------------------------------------------------------------
-        | STACKABLE LOOTING (enter when lootStackable OR stackable tribute item meets threshold)
+        | STACKABLE LOOTING
         | -------------------------------------------------------------
-        /if (${Corpse.Item[${lootslot}].Stackable} && (${lootStackable} || ${meetsTribThreshold})) {
+        /if (${lootStackable} && ${Corpse.Item[${lootslot}].Stackable}) {
             | Check lore denied cache FIRST - skip if we already failed to loot this item
             /if (${Corpse.Item[${lootslot}].Lore} && ${LoreDeniedNames.Find[|${lootName}|]}) {
                 /if (${showDebug}) /echo [STACK] Skipping ${lootName} - in LoreDeniedNames cache
@@ -2009,20 +1939,20 @@ Sub BeginLooting
                 /continue
             }
             | Process ALL, numeric limits, SELL, KEEP, BANK, and TRIBUTE items
-            /if (${itemLimit.Length} && (${itemLimitUpper.Equal[ALL]} || ${itemLimitUpper.Equal[SELL]} || ${itemLimitUpper.Equal[KEEP]} || ${itemLimitUpper.Equal[BANK]} || ${itemLimitUpper.Equal[TRIBUTE]} || (${Int[${itemLimit}]} > 0))) {
+            /if (${itemLimitUpper.Equal[ALL]} || ${itemLimitUpper.Equal[SELL]} || ${itemLimitUpper.Equal[KEEP]} || ${itemLimitUpper.Equal[BANK]} || ${itemLimitUpper.Equal[TRIBUTE]} || (${Int[${itemLimit}]} > 0)) {
                 /if (${showDebug}) /echo [STACK] Listed stackable item ${lootName} has limit "${itemLimit}" - enforcing via ProcessLootItem
                 /call ProcessLootItem ${lootslot} "${itemLimit}"
             } else {
-                | Unlisted stackable: skip if below pp threshold (unless meetsTribThreshold). If lootStackable=0, only loot when meetsTribThreshold.
-                /if (!${meetsTribThreshold} && (!${lootStackable} || (${minStackableValue} > 0 && ${itemValue} < ${minStackableValue}))) {
-                    /if (${showDebug}) /echo [STACK] Unlisted stackable ${lootName} worth ${itemValue}pp (tribute: ${tribVal}) below threshold - skipping
-                    /call AnnounceSkipped "${Target.ID}:${lootslot}:${lootName}" "${tlTag} \ao[SKIP] ${Corpse.Item[${lootslot}].ItemLink[CLICKABLE]} \at(ID: ${Target.ID}) - Below ${minStackableValue}pp threshold"
+                /if (${minStackableValue} > 0 && ${itemValue} < ${minStackableValue}) {
+                    /if (${showDebug}) /echo [STACK] Unlisted stackable item ${lootName} worth ${itemValue}pp is below threshold ${minStackableValue}pp - skipping
+                    /if (${announceSkipped}) {
+                        /call AnnounceSkipped "${Target.ID}:${lootslot}:${lootName}" "${tlTag} \ao[SKIP] ${Corpse.Item[${lootslot}].ItemLink[CLICKABLE]} \at(ID: ${Target.ID}) - Below ${minStackableValue}pp threshold"
+                    }
                     /continue
                 }
-                /if (${showDebug}) /echo [STACK] Unlisted stackable item ${lootName} worth ${itemValue}pp ${If[${meetsTribThreshold},(tribute),- looting due to LootStackable]}
+                /if (${showDebug}) /echo [STACK] Unlisted stackable item ${lootName} worth ${itemValue}pp - looting due to LootStackable
                 /call CheckInventorySpace "${lootName}" ${lootslot}
-                | Pass STACK for unlisted so LootTheItem gets non-empty limitParam (empty can skip announcement on some MQ2 builds)
-                /call LootTheItem ${lootslot} "${lootName}" 999999 "${If[${meetsTribThreshold},TRIBUTE,${If[${itemLimit.Length},${itemLimit},STACK]}]}"
+                /call LootTheItem ${lootslot} "${lootName}" 999999 "${itemLimit}"
             }
             /if (${Skip}) /goto :DoneLooting
             /if (!${Corpse.Item[${lootslot}].ID}) /varset DidLootThisCorpse TRUE
@@ -2044,15 +1974,19 @@ Sub BeginLooting
 
         | Process ALL, numeric limits, SELL, KEEP, BANK, and TRIBUTE items
         /if (${showDebug} && ${itemLimitUpper.Equal[SELL]}) /echo [DEBUG] Checking SELL item ${lootName} - itemLimitUpper="${itemLimitUpper}" - condition check
-        /if (${itemLimit.Length} && (${itemLimitUpper.Equal[ALL]} || ${itemLimitUpper.Equal[SELL]} || ${itemLimitUpper.Equal[KEEP]} || ${itemLimitUpper.Equal[BANK]} || ${itemLimitUpper.Equal[TRIBUTE]} || (${Int[${itemLimit}]} > 0))) {
+        /if (${itemLimitUpper.Equal[ALL]} || ${itemLimitUpper.Equal[SELL]} || ${itemLimitUpper.Equal[KEEP]} || ${itemLimitUpper.Equal[BANK]} || ${itemLimitUpper.Equal[TRIBUTE]} || (${Int[${itemLimit}]} > 0)) {
             /if (${showDebug} && ${itemLimitUpper.Equal[SELL]}) /echo [DEBUG] SELL item ${lootName} passed condition check, calling ProcessLootItem
             /call ProcessLootItem ${lootslot} "${itemLimit}"
             /if (${Skip}) /goto :DoneLooting
             /if (!${Corpse.Item[${lootslot}].ID}) /varset DidLootThisCorpse TRUE
         } else {
-            | Item is unlisted - skip (tribute handled by TRIBUTE-VALUE section above)
-            /if (${showDebug}) /echo [DEBUG] Item ${lootName} is unlisted (tribute: ${tribVal}, need >=${lootTribMinValue}) - skipping
-            /call AnnounceSkipped "${Target.ID}:${lootslot}:${lootName}" "${tlTag} \ao[SKIP] ${Corpse.Item[${lootslot}].ItemLink[CLICKABLE]} \at(ID: ${Target.ID}) \at(tribute: ${tribVal}, need >=${lootTribMinValue})"
+            | Item is unlisted in INI (itemLimitUpper is empty) - this is expected behavior
+            | Only items explicitly listed in [ItemLimits] are looted (unless high-value or stackable with lootStackable enabled)
+            /if (${showDebug}) {
+                /echo [DEBUG] Item ${lootName} is unlisted in INI (itemLimit="${itemLimit}", itemLimitUpper="${itemLimitUpper}") - skipping
+                /echo [DEBUG] To loot this item, add it to turboloot.ini [ItemLimits] section with a value like ALL, SELL, BANK, KEEP, or a number
+            }
+            /call AnnounceSkipped "${Target.ID}:${lootslot}:${lootName}" "${tlTag} \ao[SKIP] ${Corpse.Item[${lootslot}].ItemLink[CLICKABLE]} \at(ID: ${Target.ID})"
         }
 
     /next lootslot
@@ -2124,15 +2058,7 @@ Sub AutoSell
     
     /call AnnounceBankSell "${tlTag} \au======================================================="
     /call AnnounceBankSell "${tlTag} \aoStarting turboSell process..."
-
-    | Drop levitation before navigating - lev interferes with MQ2Nav pathing
-    /if (${Me.Levitating}) {
-        /call AnnounceBankSellProgress "${tlTag} \ayDetected levitation - removing before navigating..."
-        /removelev
-        /delay 10 !${Me.Levitating}
-        /if (${Me.Levitating}) /call AnnounceBankSell "${tlTag} \aoWARNING: Could not remove levitation. This may cause navigation issues."
-    }
-
+    
     | Clear any existing target to ensure we find the nearest merchant
     | This prevents issues when user has a non-merchant NPC or other entity targeted
     /target clear
@@ -2825,15 +2751,7 @@ Sub AutoBank
     
     /call AnnounceBankSell "${tlTag} \au======================================================="
     /call AnnounceBankSell "${tlTag} \aoStarting turboBank process..."
-
-    | Drop levitation before navigating - lev interferes with MQ2Nav pathing
-    /if (${Me.Levitating}) {
-        /call AnnounceBankSellProgress "${tlTag} \ayDetected levitation - removing before navigating..."
-        /removelev
-        /delay 10 !${Me.Levitating}
-        /if (${Me.Levitating}) /call AnnounceBankSell "${tlTag} \aoWARNING: Could not remove levitation. This may cause navigation issues."
-    }
-
+    
     | Clear any existing target to ensure we find the nearest banker
     | This prevents issues when user has a non-banker NPC or other entity targeted
     /target clear
@@ -3171,15 +3089,7 @@ Sub AutoTribute
     
     /call AnnounceBankSell "${tlTag} \au======================================================="
     /call AnnounceBankSell "${tlTag} \aoStarting turboTribute process..."
-
-    | Drop levitation before navigating - lev interferes with MQ2Nav pathing
-    /if (${Me.Levitating}) {
-        /call AnnounceBankSellProgress "${tlTag} \ayDetected levitation - removing before navigating..."
-        /removelev
-        /delay 10 !${Me.Levitating}
-        /if (${Me.Levitating}) /call AnnounceBankSell "${tlTag} \aoWARNING: Could not remove levitation. This may cause navigation issues."
-    }
-
+    
     | Clear any existing target to ensure we find the nearest tribute master
     | This prevents issues when user has a non-tribute master NPC or other entity targeted
     /target clear
@@ -3292,11 +3202,11 @@ Sub AutoTribute
                 /varset itemLimitUpper ""
             }
             
-            | Check if item is marked TRIBUTE in INI, OR unlisted with tribute value (looted via lootTribMinValue)
-            /varset itemTributeValue ${Me.Inventory[pack${packNum}].Item[${slotNum}].Tribute}
-            /if (${itemLimitUpper.Equal[TRIBUTE]} || (!${itemLimitUpper.Length} && ${itemTributeValue} > 0)) {
+            | Check if item is marked TRIBUTE - tribute immediately if found
+            /if (${itemLimitUpper.Equal[TRIBUTE]}) {
                 | Verify item still exists and has tribute value > 0 (inventory may have shifted)
                 /if (!${Me.Inventory[pack${packNum}].Item[${slotNum}].ID} || !${Me.Inventory[pack${packNum}].Item[${slotNum}].Name.Equal[${itemName}]}) /continue
+                /varset itemTributeValue ${Me.Inventory[pack${packNum}].Item[${slotNum}].Tribute}
                 /if (${itemTributeValue} > 0) {
                     /if (${showDebug}) /call AnnounceBankSell "${tlTag} \ay[DEBUG] Processing TRIBUTE item: ${itemName} in pack${packNum} slot${slotNum} (tribute value: ${itemTributeValue})"
                     /call TributeItem ${packNum} ${slotNum} "${itemName}"
@@ -3306,6 +3216,9 @@ Sub AutoTribute
                     | Item marked TRIBUTE but has 0 tribute value - notify user
                     /call AnnounceBankSell "${tlTag} \aoWARNING: Item ${Me.Inventory[pack${packNum}].Item[${slotNum}].ItemLink[CLICKABLE]} \aois marked \ayTRIBUTE\ao but has tribute value \ar0\ao (cannot be tributed)"
                 }
+            } else /if (${showDebug} && ${itemLimitUpper.Length} && !${itemLimitUpper.Equal[NULL]}) {
+                | Debug: Show items with other INI values (not TRIBUTE)
+                /call AnnounceBankSell "${tlTag} \at[DEBUG] Item ${itemName} has INI value: ${itemLimitUpper} (not TRIBUTE - skipping)"
             }
         /next slotNum
     /next packNum
@@ -3361,6 +3274,9 @@ Sub AutoTribute
         /delay 2 !${Window[TributeMasterWnd].Open}
         /if (${Window[TributeMasterWnd].Open}) /windowstate TributeMasterWnd close
         /delay 5 !${Window[TributeMasterWnd].Open}
+    }
+/return
+
     }
 /return
 
@@ -4250,9 +4166,9 @@ Sub TryClickTributeDonateButton
     /return 0
 
 | ---------------------------------------------------------------------
-| PROCESS LOOT ITEM (normal INI-driven looting)
+|| PROCESS LOOT ITEM (normal INI-driven looting)
 | ---------------------------------------------------------------------
-Sub ProcessLootItem(int lootSlot, string limitParam)
+Sub ProcessLootItem(int lootSlot, string itemLimit)
     /declare thisName string local
     
     /varset thisName ${Corpse.Item[${lootSlot}].Name}
@@ -4260,18 +4176,12 @@ Sub ProcessLootItem(int lootSlot, string limitParam)
         /if (${showDebug}) /echo [turboLoot] ERROR: Cannot get item name for slot ${lootSlot} in ProcessLootItem
         /return
     }
-    /varset itemLimitUpper ${limitParam.Upper}
+    /varset itemLimitUpper ${itemLimit.Upper}
     /varset itemLimitUpper ${itemLimitUpper.Replace[ ,]}
     /if (${itemLimitUpper.Equal[SKIP]}) /varset itemLimitUpper IGNORE
 
-    | Unlisted (empty/0/NOTFOUND/NULL): announce skip and return
-    /if (!${itemLimitUpper.Length} || ${itemLimitUpper.Equal[0]} || ${itemLimitUpper.Equal[NOTFOUND]} || ${itemLimitUpper.Equal[NULL]}) {
-        /call AnnounceSkipped "${Target.ID}:${lootSlot}:${thisName}" "${tlTag} \ao[SKIP] ${Corpse.Item[${lootSlot}].ItemLink[CLICKABLE]} \at(ID: ${Target.ID}) \at(unlisted)"
-        /return
-    }
-
-    /if (${showDebug}) /echo [ProcessLootItem] Processing ${thisName} with limit: "${limitParam}" - Lore: ${Corpse.Item[${lootSlot}].Lore}
-    /if (${showDebug} && ${itemLimitUpper.Equal[SELL]}) /echo [DEBUG] ProcessLootItem received SELL item ${thisName} - limitParam="${limitParam}" itemLimitUpper="${itemLimitUpper}"
+    /if (${showDebug}) /echo [ProcessLootItem] Processing ${thisName} with limit: "${itemLimit}" - Lore: ${Corpse.Item[${lootSlot}].Lore}
+    /if (${showDebug} && ${itemLimitUpper.Equal[SELL]}) /echo [DEBUG] ProcessLootItem received SELL item ${thisName} - itemLimit="${itemLimit}" itemLimitUpper="${itemLimitUpper}"
 
     /if (${itemLimitUpper.Equal[IGNORE]}) {
         /if (${showDebug}) {
@@ -4294,44 +4204,50 @@ Sub ProcessLootItem(int lootSlot, string limitParam)
         /return
     }
 
-    | Check LORE restrictions before SELL/KEEP/BANK
+    | Check LORE restrictions BEFORE handling SELL/KEEP/BANK (so they respect LORE like ALL items)
     /if (${Corpse.Item[${lootSlot}].Lore}) {
         /varset currentCount ${Math.Calc[${FindItemCount[=${thisName}]}+${FindItemBankCount[=${thisName}]}]}
         /if (${showDebug}) /echo [ProcessLootItem] LORE item check - currentCount: ${currentCount}
-        /if (${currentCount} >= 1) {
-            /call AnnounceSkipped "${Target.ID}:${lootSlot}:${thisName}" "${tlTag} \ao[SKIP] ${Corpse.Item[${lootSlot}].ItemLink[CLICKABLE]} \at(ID: ${Target.ID}) - Already have"
+        /if (${currentCount}>=1) {
+            /if (${showDebug} || ${announceSkipped} || ${announceLore}) {
+                /call AnnounceSkipped "${Target.ID}:${lootSlot}:${thisName}" "${tlTag} \ao[SKIP] ${Corpse.Item[${lootSlot}].ItemLink[CLICKABLE]} \at(ID: ${Target.ID}) - Already have"
+            }
             /if (${showDebug} && (${thisName.Find[Spell]} || ${thisName.Find[Skill]})) /echo [DEBUG] Wildcard item skipped due to LORE - already have ${currentCount}
             /return
         }
     }
 
-    | SELL/KEEP/BANK/TRIBUTE: loot like ALL
+    | Handle SELL, KEEP, BANK, and TRIBUTE (for selling/banking/tributing purposes, but loot like ALL)
+    | Note: LORE check happens above, so SELL/KEEP/BANK/TRIBUTE items respect LORE restrictions
     /if (${itemLimitUpper.Equal[SELL]} || ${itemLimitUpper.Equal[KEEP]} || ${itemLimitUpper.Equal[BANK]} || ${itemLimitUpper.Equal[TRIBUTE]}) {
+        | For looting purposes, treat SELL, KEEP, BANK, and TRIBUTE like ALL
         /if (${showDebug}) /echo [ProcessLootItem] ItemLimit is ${itemLimitUpper}, treating as ALL for looting
         /call CheckInventorySpace "${thisName}" ${lootSlot}
-        /call LootTheItem ${lootSlot} "${thisName}" 999999 "${limitParam}"
+        /call LootTheItem ${lootSlot} "${thisName}" 999999 "${itemLimit}"
         /return
     }
 
     /if (${itemLimitUpper.Equal[ALL]}) {
         /if (${showDebug}) /echo [ProcessLootItem] ItemLimit is ALL, calling LootTheItem
         /call CheckInventorySpace "${thisName}" ${lootSlot}
-        /call LootTheItem ${lootSlot} "${thisName}" 999999 "${limitParam}"
+        /call LootTheItem ${lootSlot} "${thisName}" 999999 "${itemLimit}"
         /return
     }
 
-    /if (!${itemLimitUpper.Equal[ALL]} && !${itemLimitUpper.Equal[IGNORE]} && !${itemLimitUpper.Equal[DESTROY]} && ${Int[${limitParam}]} > 0) {
+    /if (!${itemLimitUpper.Equal[ALL]} && !${itemLimitUpper.Equal[IGNORE]} && !${itemLimitUpper.Equal[DESTROY]} && ${Int[${itemLimit}]} > 0) {
         /varset currentCount ${Math.Calc[${FindItemCount[=${thisName}]}+${FindItemBankCount[=${thisName}]}]}
-        /if (${showDebug}) /echo [ProcessLootItem] Checking limit (inv+bank) - currentCount: ${currentCount}, limitParam: ${limitParam}, Int[limitParam]: ${Int[${limitParam}]}
-        /if (${currentCount} >= ${Int[${limitParam}]}) {
-            /if (${showDebug}) /echo [ProcessLootItem] SKIPPING - currentCount (${currentCount}) >= limit (${Int[${limitParam}]})
+        /if (${showDebug}) /echo [ProcessLootItem] Checking limit (inv+bank) - currentCount: ${currentCount}, itemLimit: ${itemLimit}, Int[itemLimit]: ${Int[${itemLimit}]}
+        /if (${currentCount} >= ${Int[${itemLimit}]}) {
+            /if (${showDebug}) /echo [ProcessLootItem] SKIPPING - currentCount (${currentCount}) >= limit (${Int[${itemLimit}]})
             /if (${showDebug} && (${thisName.Find[Spell]} || ${thisName.Find[Skill]})) /echo [DEBUG] WARNING: Wildcard item ${thisName} skipped due to limit - this shouldn't happen for wildcard items!
-            /call AnnounceSkipped "${Target.ID}:${lootSlot}:${thisName}" "${tlTag} \ar*** LIMIT REACHED ***\aw You have reached your limit of ${Int[${limitParam}]} for ${Corpse.Item[${lootSlot}].ItemLink[CLICKABLE]} - skipping"
+            /if (${showDebug} || ${announceSkipped} || (${Corpse.Item[${lootSlot}].Lore} && ${announceLore})) {
+                /call AnnounceSkipped "${Target.ID}:${lootSlot}:${thisName}" "${tlTag} \ar*** LIMIT REACHED ***\aw You have reached your limit of ${Int[${itemLimit}]} for ${Corpse.Item[${lootSlot}].ItemLink[CLICKABLE]} - skipping"
+            }
             /return
         }
         
         /call CheckInventorySpace "${thisName}" ${lootSlot}
-        /call LootTheItem ${lootSlot} "${thisName}" ${Int[${limitParam}]} "${limitParam}"
+        /call LootTheItem ${lootSlot} "${thisName}" ${Int[${itemLimit}]} "${itemLimit}"
     }
 /return
 
@@ -4411,11 +4327,10 @@ Sub LootHighValueItem(int lootSlot)
 | ---------------------------------------------------------------------
 | LOOT THE ITEM (normal looting)
 | ---------------------------------------------------------------------
-| limitParam: avoids shadowing outer itemLimit (which is "" for unlisted items)
-Sub LootTheItem(int lootSlot, string thisName, int maxCount, string limitParam)
+Sub LootTheItem(int lootSlot, string thisName, int maxCount, string itemLimit)
     /declare tries int local 0
     | itemLimitUpper is already declared as outer, so just set it (don't redeclare)
-    /varset itemLimitUpper ${limitParam.Upper}
+    /varset itemLimitUpper ${itemLimit.Upper}
     /varset itemLimitUpper ${itemLimitUpper.Replace[ ,]}
     /if (${itemLimitUpper.Equal[SKIP]}) /varset itemLimitUpper IGNORE
 
@@ -4424,11 +4339,13 @@ Sub LootTheItem(int lootSlot, string thisName, int maxCount, string limitParam)
 
     | Already at limit?
     /if (${currentCount} >= ${maxCount}) {
-        | Check if item still exists in corpse before accessing ItemLink
-        /if (${Corpse.Item[${lootSlot}].ID}) {
-            /call AnnounceSkipped "${Target.ID}:${lootSlot}:${thisName}" "${tlTag} \ar*** LIMIT REACHED ***\aw You have reached your limit of ${maxCount} for ${Corpse.Item[${lootSlot}].ItemLink[CLICKABLE]} - skipping"
-        } else {
-            /call AnnounceSkipped "${Target.ID}:${lootSlot}:${thisName}" "${tlTag} \ar*** LIMIT REACHED ***\aw You have reached your limit of ${maxCount} for ${thisName} - skipping"
+        /if (${showDebug} || ${announceSkipped}) {
+            | Check if item still exists in corpse before accessing ItemLink
+            /if (${Corpse.Item[${lootSlot}].ID}) {
+                /call AnnounceSkipped "${Target.ID}:${lootSlot}:${thisName}" "${tlTag} \ar*** LIMIT REACHED ***\aw You have reached your limit of ${maxCount} for ${Corpse.Item[${lootSlot}].ItemLink[CLICKABLE]} - skipping"
+            } else {
+                /call AnnounceSkipped "${Target.ID}:${lootSlot}:${thisName}" "${tlTag} \ar*** LIMIT REACHED ***\aw You have reached your limit of ${maxCount} for ${thisName} - skipping"
+            }
         }
         /return
     }
@@ -4497,11 +4414,11 @@ Sub LootTheItem(int lootSlot, string thisName, int maxCount, string limitParam)
         /doevents
         /if (${Cursor.ID}) /call ForceClearCursor
 
-        | Alert when we just reached a numeric limit (obvious to user) - use Announce not AnnounceSkipped (we looted, didn't skip)
-        /if ((${maxCount} < 999999) && (${maxCount} > 0)) {
+        | Alert when we just reached a numeric limit (obvious to user)
+        /if (${maxCount} < 999999) && (${maxCount} > 0) {
             /varset currentCount ${Math.Calc[${FindItemCount[=${thisName}]}+${FindItemBankCount[=${thisName}]}]}
-            /if (${currentCount} >= ${maxCount}) {
-                /call Announce "${announceSkippedMethod}" "${tlTag} \ar*** LIMIT REACHED ***\aw You now have ${currentCount}/${maxCount} ${thisName}"
+            /if (${currentCount} >= ${maxCount} && (${showDebug} || ${announceSkipped})) {
+                /call AnnounceSkipped "${Target.ID}:${lootSlot}:${thisName}" "${tlTag} \ar*** LIMIT REACHED ***\aw You now have ${currentCount}/${maxCount} ${thisName}"
             }
         }
 
@@ -4624,11 +4541,6 @@ Sub HandleQuantityWindow
     /squelch /notify QuantityWnd QTYW_Accept_Button leftmouseup
     /keypress ENTER
     /delay 3 !${Window[QuantityWnd].Open}
-    | Wait for item to reach inventory (prevents "cursor occupied" on next loot)
-    /if (${Cursor.ID}) {
-        /delay 5 !${Cursor.ID}
-        /if (${Cursor.ID}) /call ForceClearCursor
-    }
 
     /if (${Window[QuantityWnd].Open}) {
         /echo [turboLoot] ERROR: Quantity window stuck open. Aborting macro.
@@ -4721,8 +4633,19 @@ Sub HandleLoreBlocked(int lootSlot, string thisName)
         /varset itemDisplay ${thisName}
     }
     
-    | Use AnnounceSkipped so all skip announcements honor announceSkipTo (announceSkippedMethod)
-    /call AnnounceSkipped "${Target.ID}:${lootSlot}:${thisName}" "\ao[SKIP] ${itemDisplay} \at(ID: ${Target.ID}) \at(already owned)"
+    /if (${showDebug} || ${announceSkipped} || ${announceLore}) {
+        /if (${announceLoreMethod.Upper.Equal[ECHO]} || ${announceLoreMethod.Upper.Equal[E3BC]}) {
+            /call AnnounceSkipped "${Target.ID}:${lootSlot}:${thisName}" "\ao[SKIP] ${itemDisplay} \at(ID: ${Target.ID}) \at(already owned)"
+        } else {
+            /declare msg string local \ao[SKIP] ${itemDisplay} \at(ID: ${Target.ID}) \at(already owned)
+            /declare formattedMsg string local ${FormatMessage[${msg},${announceLoreMethod}]}
+            /docommand /${announceLoreMethod} ${formattedMsg}
+            /varcalc itemsSkipped ${itemsSkipped}+1
+        }
+    } else {
+        | Silent skip - still count it
+        /varcalc itemsSkipped ${itemsSkipped}+1
+    }
 
     | DON'T mark corpse as alerted - we want to continue looting other items on this corpse
     | The item name is added to LoreDeniedNames cache so we won't retry THIS item
@@ -4748,12 +4671,24 @@ Sub HandleGiveUpLoot(int lootSlot, string thisName, int tries)
         /if (${LoreDeniedNames.Length} > 2000) /varset LoreDeniedNames ""
         /if (!${LoreDeniedNames.Length} || !${LoreDeniedNames.Find[|${thisName}|]}) /varset LoreDeniedNames "${LoreDeniedNames}|${thisName}|"
         | Announce as skip
-        /call AnnounceSkipped "${Target.ID}:${lootSlot}:${thisName}" "${tlTag} \ao[SKIP] ${Corpse.Item[${lootSlot}].ItemLink[CLICKABLE]} \at(ID: ${Target.ID}) \at(lore - already owned)"
+        /if (${showDebug} || ${announceSkipped} || ${announceLore}) {
+            /call AnnounceSkipped "${Target.ID}:${lootSlot}:${thisName}" "${tlTag} \ao[SKIP] ${Corpse.Item[${lootSlot}].ItemLink[CLICKABLE]} \at(ID: ${Target.ID}) \at(lore - already owned)"
+        }
+        /varcalc itemsSkipped ${itemsSkipped}+1
         /return
     }
 
-    | Count as skipped and announce (failed to loot after retries)
-    /call AnnounceSkipped "${Target.ID}:${lootSlot}:${thisName}" "${tlTag} \ar[GIVING UP] ${Corpse.Item[${lootSlot}].ItemLink[CLICKABLE]} \at(failed ${tries}x)"
+    /if (${showDebug} || ${announceSkipped}) {
+        /if (${announceMethod.Upper.Equal[ECHO]} || ${announceMethod.Upper.Equal[E3BC]}) {
+            /docommand /${announceMethod} ${tlTag} \ar[GIVING UP] ${Corpse.Item[${lootSlot}].ItemLink[CLICKABLE]} \at(failed ${tries}x)
+        } else {
+            /declare msg string local ${tlTag} \ar[GIVING UP] ${Corpse.Item[${lootSlot}].ItemLink[CLICKABLE]} \at(failed ${tries}x)
+            /varset msg ${msg.Replace[NULL,${thisName}]}
+            /varset msg ${msg.Replace[null,${thisName}]}
+            /declare formattedMsg string local ${FormatMessage[${msg},${announceMethod}]}
+            /docommand /${announceMethod} ${formattedMsg}
+        }
+    }
 
     | Don't mark entire corpse as skip - just this item failed
     | The /for loop will continue to the next item automatically
@@ -4785,10 +4720,18 @@ Sub Event_TooFar
 /return
 
 Sub Event_CursorOccupied
-    /if (${showDebug}) /echo [turboLoot] Cursor occupied - clearing cursor
-    /call ForceClearCursor
-    /delay 2 !${Cursor.ID}
-    /if (${Cursor.ID}) /call ForceClearCursor
+    /if (${showDebug}) /echo [turboLoot] Cursor occupied error detected - clearing phantom cursor
+    /declare cTries int local 0
+    
+    /while (${cTries} < 3) {
+        /varcalc cTries ${cTries}+1
+        /autoinventory
+        /delay 1
+        /autoi
+        /delay 1
+    }
+    
+    /delay 1
 /return
 
 
@@ -4943,10 +4886,11 @@ Sub ForceClearCursor
     /if (${Cursor.ID}) {
         /if (${showDebug}) /echo [turboLoot] Cursor has item: ${Cursor.Name} - clearing
         /autoinventory
-        /delay 3 !${Cursor.ID}
+        | Conditional delay - exits early when cursor is empty (reduced from 10 to 5 ticks)
+        /delay 5 !${Cursor.ID}
         /if (${Cursor.ID}) {
             /autoi
-            /delay 3 !${Cursor.ID}
+            /delay 5 !${Cursor.ID}
         }
     }
 /return
@@ -5078,15 +5022,21 @@ Sub AnnounceBankSellPerItem(string msg)
 
 Sub AnnounceSkipped(string key, string msg)
     /varcalc itemsSkipped ${itemsSkipped}+1
-    /echo ${msg}
     /declare itemNameFromKey string local
+    | Key format is "corpseID:slot:itemName" - extract just the item name
     /if (${key.Find[:]}) {
+        | Remove corpseID (everything up to and including first colon)
         /varset itemNameFromKey ${key.Right[-${key.Find[:]}]}
         /if (${itemNameFromKey.Find[:]}) {
+            | Remove slot number (everything up to and including second colon)
             /varset itemNameFromKey ${itemNameFromKey.Right[-${itemNameFromKey.Find[:]}]}
         }
     }
+    | Only do NULL/null replacements if message doesn't appear to contain an item link
+    | Item links contain special codes - check for item link patterns to avoid corruption
+    | ItemLink[CLICKABLE] produces formatted strings - check if message contains item link indicators
     /declare hasItemLink bool local FALSE
+    | Check for common item link patterns (ItemLink property usage or item link codes)
     /if (${msg.Find[ItemLink]} || ${msg.Find[\ax]} || ${msg.Length} > 200) {
         /varset hasItemLink TRUE
     }
@@ -5095,12 +5045,9 @@ Sub AnnounceSkipped(string key, string msg)
         /varset msg ${msg.Replace[null,${itemNameFromKey}]}
     }
     /declare skipMethodUpper string local ${announceSkippedMethod.Upper}
-    /declare effectiveMethod string local ${announceSkippedMethod}
-    /if (!${effectiveMethod.Length}) /varset effectiveMethod echo
-    /if ((${skipMethodUpper.Equal[GSAY]} || ${skipMethodUpper.Equal[G]}) && !${Me.Grouped}) {
-        /varset effectiveMethod echo
-    }
+    | For group chat with item links, strip color codes but preserve item links
     /if ((${skipMethodUpper.Equal[GSAY]} || ${skipMethodUpper.Equal[G]}) && ${Me.Grouped}) {
+        | Strip color codes manually but preserve item links (FormatMessage strips \ax which breaks item links)
         /declare groupMsg string local ${msg}
         /varset groupMsg ${groupMsg.Replace[\at,]}
         /varset groupMsg ${groupMsg.Replace[\ao,]}
@@ -5111,12 +5058,13 @@ Sub AnnounceSkipped(string key, string msg)
         /varset groupMsg ${groupMsg.Replace[\aw,]}
         /varset groupMsg ${groupMsg.Replace[\ay,]}
         /varset groupMsg ${groupMsg.Replace[\ap,]}
+        | Don't strip \ax - it's needed to close item links
         /varset groupMsg ${groupMsg.Replace[[turboLoot] ,]}
         /varset groupMsg ${groupMsg.Replace[[turboLoot],]}
         /call GsayOnce "${key}" "${groupMsg}"
     } else {
-        /declare formattedMsg string local ${FormatMessage[${msg},${effectiveMethod}]}
-        /docommand /${effectiveMethod} ${formattedMsg}
+        /declare formattedMsg string local ${FormatMessage[${msg},${announceSkippedMethod}]}
+        /docommand /${announceSkippedMethod} ${formattedMsg}
     }
 /return
 
@@ -5461,40 +5409,6 @@ Sub NavToIDWithDoorsAndNudges(int targetID, float stopDist, int maxTicks)
     /goto :NavIDLoop
 
 | ---------------------------------------------------------------------
-| NAV BACK TO GROUP LEADER
-| Called after sell/bank/tribute/unload to return bot to leader
-| Requires MQ2Nav. Skips if: not grouped, no leader, leader is self,
-|   leader out of range/zone, or nav path doesn't exist.
-| ---------------------------------------------------------------------
-Sub NavBackToGroupLeader
-    /if (!${Me.Grouped}) /return
-    /if (${Me.Feigning}) /return
-    /if (!${Group.Leader.ID}) /return
-    /if (${Group.Leader.ID} == ${Me.ID}) /return
-    /if (${Group.Leader.Zoning}) /return
-    /if (!${Group.Leader.Present}) /return
-
-    /declare navDist float local 30
-
-    /if (${Group.Leader.Distance} <= ${navDist}) {
-        /if (${showDebug}) /echo [turboLoot] NavBackToGroupLeader: Already within ${navDist} units of ${Group.Leader.Name}, skipping.
-        /return
-    }
-
-    /call AnnounceBankSellProgress "${tlTag} \ayNavigating back to group leader: ${Group.Leader.Name}..."
-
-    /target id ${Group.Leader.ID}
-    /delay 5 ${Target.ID}
-    /if (!${Target.ID}) /return
-
-    /call NavToIDWithDoorsAndNudges ${Group.Leader.ID} ${navDist} 600
-
-    /squelch /nav stop
-    /squelch /target clear
-    /if (${showDebug}) /echo [turboLoot] NavBackToGroupLeader: Done.
-/return
-
-| ---------------------------------------------------------------------
 | LOAD WILDCARDS FROM INI [Wildcards] SECTION
 | Reads prefixes from [Wildcards] and builds a pipe-delimited string
 | for IsWildcardItem to check against.
@@ -5579,8 +5493,8 @@ Sub LoadWildcards
     | Finalize
     /if (${wildcardPrefixes.Length}) {
         /varset wildcardPrefixes "${wildcardPrefixes}|"
-        /if (${showDebug}) /echo [turboLoot] Wildcards active: ${wildcardPrefixes}
-    } else /if (${showDebug}) {
+        /echo [turboLoot] Wildcards active: ${wildcardPrefixes}
+    } else {
         /echo [turboLoot] No wildcards loaded from [Wildcards] section.
     }
 /return
