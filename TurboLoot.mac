@@ -6,7 +6,7 @@
 |   |_|   \____/|_|  \_\____/ \____/|______\____/ \____/  |_|
 |------------------------------------------------------------------>
 
-| turboLoot 3.7.4
+| turboLoot 3.7.5
 | Made by: <Lederhosen>, Drel, Jabs, Matde, Belakk, Veldrinn, Zhugg, Kroaking, Jeremy
 
 #turbo 100
@@ -328,6 +328,7 @@ Sub InitStateMinimal
     /declare dryRunSellCount int outer 0
     /declare dryRunSellTotalCopper int outer 0
     /declare returnToLeader bool outer FALSE
+    /declare dropLevBeforeNav bool outer TRUE
 /return
 
 || ---------------------------------------------------------------------
@@ -633,6 +634,19 @@ Sub LoadSettingsMinimal(string modeParam)
         } else {
             /varset returnToLeader FALSE
         }
+    }
+
+    | dropLevBeforeNav - drop levitation before navigating to vendors/bankers/tribute masters (default ON)
+    /declare dropLevSetting string local ${IniGetStringOrEmpty[Settings,dropLevBeforeNav]}
+    /if (${dropLevSetting.Length}) {
+        /declare dropLevUpper string local ${dropLevSetting.Upper.Replace[ ,]}
+        /if (${dropLevUpper.Equal[ON]} || ${dropLevUpper.Equal[TRUE]} || ${dropLevUpper.Equal[YES]} || ${dropLevUpper.Equal[1]}) {
+            /varset dropLevBeforeNav TRUE
+        } else {
+            /varset dropLevBeforeNav FALSE
+        }
+    } else {
+        /varset dropLevBeforeNav TRUE
     }
 
     /call LoadWildcards
@@ -2089,7 +2103,7 @@ Sub AutoSell
     /call AnnounceBankSell "${tlTag} \aoStarting turboSell process..."
 
     | Drop levitation before navigating - lev interferes with MQ2Nav pathing
-    /if (${Me.Levitating}) {
+    /if (${dropLevBeforeNav} && ${Me.Levitating}) {
         /call AnnounceBankSellProgress "${tlTag} \ayDetected levitation - removing before navigating..."
         /removelev
         /delay 10 !${Me.Levitating}
@@ -2790,7 +2804,7 @@ Sub AutoBank
     /call AnnounceBankSell "${tlTag} \aoStarting turboBank process..."
 
     | Drop levitation before navigating - lev interferes with MQ2Nav pathing
-    /if (${Me.Levitating}) {
+    /if (${dropLevBeforeNav} && ${Me.Levitating}) {
         /call AnnounceBankSellProgress "${tlTag} \ayDetected levitation - removing before navigating..."
         /removelev
         /delay 10 !${Me.Levitating}
@@ -3136,7 +3150,7 @@ Sub AutoTribute
     /call AnnounceBankSell "${tlTag} \aoStarting turboTribute process..."
 
     | Drop levitation before navigating - lev interferes with MQ2Nav pathing
-    /if (${Me.Levitating}) {
+    /if (${dropLevBeforeNav} && ${Me.Levitating}) {
         /call AnnounceBankSellProgress "${tlTag} \ayDetected levitation - removing before navigating..."
         /removelev
         /delay 10 !${Me.Levitating}
