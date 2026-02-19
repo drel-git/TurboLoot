@@ -63,11 +63,13 @@ debug=OFF
 ; --Looting & Selling Rules--
 lootHighValueMinPP=50
 lootStackableMinPP=50
+lootTribMinValue=100
 sellUnlistedStackable=OFF
 sellUnlistedItems=OFF
 sellWildcards=OFF
 bankWildcards=OFF
 StopLootWhenAttacked=ON
+returnToLeader=ON
 
 ; --Announcements (where messages go)--
 announceDefaultTo=e3bc
