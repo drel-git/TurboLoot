@@ -6,7 +6,7 @@
 |   |_|   \____/|_|  \_\____/ \____/|______\____/ \____/  |_|
 |------------------------------------------------------------------>
 
-| turboLoot 3.7.3
+| turboLoot 3.7.4
 | Made by: <Lederhosen>, Drel, Jabs, Matde, Belakk, Veldrinn, Zhugg, Kroaking, Jeremy
 
 #turbo 100
@@ -62,12 +62,15 @@ Sub Main
     /if (${mode.Equal[SELL]}) {
         /call InitStateMinimal
         /call LoadSettingsMinimal SELL
+        /call PauseAFollow
         /declare dryRun bool outer ${isDryRun}
         /if (${isDryRun}) {
             /call AutoSellDryRun FALSE
         } else {
             /call AutoSell
+            /if (${returnToLeader}) /call NavBackToGroupLeader
         }
+        /call UnpauseAFollow
         /call Cleanup
         /return
     }
@@ -86,7 +89,10 @@ Sub Main
     /if (${mode.Equal[BANK]}) {
         /call InitStateMinimal
         /call LoadSettingsMinimal BANK
+        /call PauseAFollow
         /call AutoBank
+        /if (${returnToLeader}) /call NavBackToGroupLeader
+        /call UnpauseAFollow
         /call Cleanup
         /return
     }
@@ -95,7 +101,10 @@ Sub Main
     /if (${mode.Equal[TRIBUTE]}) {
         /call InitStateMinimal
         /call LoadSettingsMinimal TRIBUTE
+        /call PauseAFollow
         /call AutoTribute
+        /if (${returnToLeader}) /call NavBackToGroupLeader
+        /call UnpauseAFollow
         /call Cleanup
         /return
     }
@@ -113,13 +122,10 @@ Sub Main
     | Route to unload mode if requested (minimal initialization for speed)
     | Unload runs: TRIBUTE -> BANK -> SELL -> DESTROY
     /if (${mode.Equal[UNLOAD]}) {
-        /if (${isDryRun}) {
-            /echo \at[turboLoot] \arERROR: Dry-run mode not supported for unload command.
-            /echo \at[turboLoot] \ayUse \ag/mac turboloot sell dryrun\aw to preview items that would be sold.
-            /return
-        }
         /call InitStateMinimal
         /call LoadSettingsMinimal TRIBUTE
+        /declare unloadReturn bool local ${returnToLeader}
+        /call PauseAFollow
         /call AutoTribute
         /call LoadSettingsMinimal BANK
         /call AutoBank
@@ -127,6 +133,8 @@ Sub Main
         /call AutoSell
         /call AutoDestroy
         /call PrintUnloadSummary
+        /if (${unloadReturn}) /call NavBackToGroupLeader
+        /call UnpauseAFollow
         /call Cleanup
         /return
     }
@@ -265,6 +273,7 @@ Sub InitState
     /declare announceInventoryAlmostFull int outer
     | Per-run warning dedupe for container autobank errors (keyed by container name)
     /declare BankContainerWarnedKeys string outer ""
+    /declare lootTribMinValue int outer 0
 /return
 
 || ---------------------------------------------------------------------
@@ -319,6 +328,7 @@ Sub InitStateMinimal
     | Note: dryRun is declared in Main when needed, not here to avoid conflicts
     /declare dryRunSellCount int outer 0
     /declare dryRunSellTotalCopper int outer 0
+    /declare returnToLeader bool outer FALSE
 /return
 
 || ---------------------------------------------------------------------
@@ -615,6 +625,16 @@ Sub LoadSettingsMinimal(string modeParam)
             /varset sellWildcards 0
         }
     }
+    | returnToLeader - nav back to group leader after sell/bank/tribute/unload
+    /declare rtlSetting string local ${IniGetStringOrEmpty[Settings,returnToLeader]}
+    /if (${rtlSetting.Length}) {
+        /declare rtlUpper string local ${rtlSetting.Upper.Replace[ ,]}
+        /if (${rtlUpper.Equal[ON]} || ${rtlUpper.Equal[TRUE]} || ${rtlUpper.Equal[YES]} || ${rtlUpper.Equal[1]}) {
+            /varset returnToLeader TRUE
+        } else {
+            /varset returnToLeader FALSE
+        }
+    }
 
     /call LoadWildcards
 /return
@@ -778,6 +798,16 @@ Sub LoadSettings
         /varset lootStackable ${Int[${IniGetStringOrEmpty[Settings,LootStackable]}]}
         /varset minStackableValue ${Int[${IniGetStringOrEmpty[Settings,MinStackableValue]}]}
         /if (!${minStackableValue} || ${minStackableValue} < 0) /varset minStackableValue 0
+    }
+
+
+    | lootTribMinValue - loot unlisted items that meet a minimum tribute value threshold
+    /declare lootTribMinValueSetting string local ${IniGetStringOrEmpty[Settings,lootTribMinValue]}
+    /if (${lootTribMinValueSetting.Length}) {
+        /varset lootTribMinValue ${Int[${lootTribMinValueSetting}]}
+        /if (${lootTribMinValue} < 0) /varset lootTribMinValue 0
+    } else {
+        /varset lootTribMinValue 0
     }
 
     | Aliases supported:
@@ -1844,12 +1874,20 @@ Sub BeginLooting
         | DESTROY
         | -------------------------------------------------------------
     /if (${itemLimitUpper.Equal[DESTROY]}) {
-        /if (${showDebug} || ${announceDestroyed}) /call Announce "${announceMethod}" "${tlTag} \ar[DESTROY] ${Corpse.Item[${lootslot}].ItemLink[CLICKABLE]} \at(ID: ${Target.ID})"
-        /call LootAndDestroyCorpseItem ${lootslot} "${lootName}"
-        /if (${Skip}) /goto :DoneLooting
-        /varset DidLootThisCorpse TRUE
-        /continue
-    }
+            | Check if this is a LORE item we already possess (inv + bank) - can't loot it to destroy it
+            /if (${Corpse.Item[${lootslot}].Lore}) {
+                /declare destroyLoreCount int local ${Math.Calc[${FindItemCount[=${lootName}]}+${FindItemBankCount[=${lootName}]}]}
+                /if (${destroyLoreCount} >= 1) {
+                    /if (${showDebug} || ${announceSkipped}) /call AnnounceSkipped "${Target.ID}:${lootslot}:${lootName}" "${tlTag} \ao[SKIP] ${Corpse.Item[${lootslot}].ItemLink[CLICKABLE]} \at(ID: ${Target.ID}) - LORE item already in inventory/bank (can't loot to destroy)"
+                    /continue
+                }
+            }
+            /if (${showDebug} || ${announceDestroyed}) /call Announce "${announceMethod}" "${tlTag} \ar[DESTROY] ${Corpse.Item[${lootslot}].ItemLink[CLICKABLE]} \at(ID: ${Target.ID})"
+            /call LootAndDestroyCorpseItem ${lootslot} "${lootName}"
+            /if (${Skip}) /goto :DoneLooting
+            /varset DidLootThisCorpse TRUE
+            /continue
+        }
 
         | -------------------------------------------------------------
         | LORE-DENIED CACHE CHECK
@@ -1980,13 +2018,32 @@ Sub BeginLooting
             /if (${Skip}) /goto :DoneLooting
             /if (!${Corpse.Item[${lootslot}].ID}) /varset DidLootThisCorpse TRUE
         } else {
-            | Item is unlisted in INI (itemLimitUpper is empty) - this is expected behavior
-            | Only items explicitly listed in [ItemLimits] are looted (unless high-value or stackable with lootStackable enabled)
-            /if (${showDebug}) {
-                /echo [DEBUG] Item ${lootName} is unlisted in INI (itemLimit="${itemLimit}", itemLimitUpper="${itemLimitUpper}") - skipping
-                /echo [DEBUG] To loot this item, add it to turboloot.ini [ItemLimits] section with a value like ALL, SELL, BANK, KEEP, or a number
+            | Item is unlisted - check tribute value threshold before skipping
+            /if (${lootTribMinValue} > 0 && ${Corpse.Item[${lootslot}].Tribute} >= ${lootTribMinValue}) {
+                | Item meets tribute threshold - loot it and mark as TRIBUTE for AutoTribute
+                /if (${Corpse.Item[${lootslot}].Lore} && ${LoreDeniedNames.Find[|${lootName}|]}) {
+                    /call AnnounceSkipped "${Target.ID}:${lootslot}:${lootName}" "${tlTag} \ao[SKIP] ${Corpse.Item[${lootslot}].ItemLink[CLICKABLE]} \at(ID: ${Target.ID}) - Already have (cached)"
+                    /continue
+                }
+                /if (${Corpse.Item[${lootslot}].Lore}) {
+                    /varset currentCount ${Math.Calc[${FindItemCount[=${lootName}]}+${FindItemBankCount[=${lootName}]}]}
+                    /if (${currentCount} >= 1) {
+                        /call AnnounceSkipped "${Target.ID}:${lootslot}:${lootName}" "${tlTag} \ao[SKIP] ${Corpse.Item[${lootslot}].ItemLink[CLICKABLE]} \at(ID: ${Target.ID}) - Already have"
+                        /continue
+                    }
+                }
+                /if (${showDebug} || ${announceLooted}) /call Announce "${announceMethod}" "${tlTag} \ag[TRIB-LOOT] ${Corpse.Item[${lootslot}].ItemLink[CLICKABLE]} \at(tribute value: ${Corpse.Item[${lootslot}].Tribute})"
+                /call ProcessLootItem ${lootslot} "KEEP"
+                /if (${Skip}) /goto :DoneLooting
+                /if (!${Corpse.Item[${lootslot}].ID}) /varset DidLootThisCorpse TRUE
+            } else {
+                | Truly unlisted and below tribute threshold - skip as normal
+                /if (${showDebug}) {
+                    /echo [DEBUG] Item ${lootName} is unlisted in INI (itemLimit="${itemLimit}", itemLimitUpper="${itemLimitUpper}") - skipping
+                    /echo [DEBUG] To loot this item, add it to turboloot.ini [ItemLimits] section with a value like ALL, SELL, BANK, KEEP, or a number
+                }
+                /call AnnounceSkipped "${Target.ID}:${lootslot}:${lootName}" "${tlTag} \ao[SKIP] ${Corpse.Item[${lootslot}].ItemLink[CLICKABLE]} \at(ID: ${Target.ID})"
             }
-            /call AnnounceSkipped "${Target.ID}:${lootslot}:${lootName}" "${tlTag} \ao[SKIP] ${Corpse.Item[${lootslot}].ItemLink[CLICKABLE]} \at(ID: ${Target.ID})"
         }
 
     /next lootslot
@@ -2058,7 +2115,15 @@ Sub AutoSell
     
     /call AnnounceBankSell "${tlTag} \au======================================================="
     /call AnnounceBankSell "${tlTag} \aoStarting turboSell process..."
-    
+
+    | Drop levitation before navigating - lev interferes with MQ2Nav pathing
+    /if (${Me.Levitating}) {
+        /call AnnounceBankSellProgress "${tlTag} \ayDetected levitation - removing before navigating..."
+        /removelev
+        /delay 10 !${Me.Levitating}
+        /if (${Me.Levitating}) /call AnnounceBankSell "${tlTag} \aoWARNING: Could not remove levitation. This may cause navigation issues."
+    }
+
     | Clear any existing target to ensure we find the nearest merchant
     | This prevents issues when user has a non-merchant NPC or other entity targeted
     /target clear
@@ -2751,7 +2816,15 @@ Sub AutoBank
     
     /call AnnounceBankSell "${tlTag} \au======================================================="
     /call AnnounceBankSell "${tlTag} \aoStarting turboBank process..."
-    
+
+    | Drop levitation before navigating - lev interferes with MQ2Nav pathing
+    /if (${Me.Levitating}) {
+        /call AnnounceBankSellProgress "${tlTag} \ayDetected levitation - removing before navigating..."
+        /removelev
+        /delay 10 !${Me.Levitating}
+        /if (${Me.Levitating}) /call AnnounceBankSell "${tlTag} \aoWARNING: Could not remove levitation. This may cause navigation issues."
+    }
+
     | Clear any existing target to ensure we find the nearest banker
     | This prevents issues when user has a non-banker NPC or other entity targeted
     /target clear
@@ -3089,7 +3162,15 @@ Sub AutoTribute
     
     /call AnnounceBankSell "${tlTag} \au======================================================="
     /call AnnounceBankSell "${tlTag} \aoStarting turboTribute process..."
-    
+
+    | Drop levitation before navigating - lev interferes with MQ2Nav pathing
+    /if (${Me.Levitating}) {
+        /call AnnounceBankSellProgress "${tlTag} \ayDetected levitation - removing before navigating..."
+        /removelev
+        /delay 10 !${Me.Levitating}
+        /if (${Me.Levitating}) /call AnnounceBankSell "${tlTag} \aoWARNING: Could not remove levitation. This may cause navigation issues."
+    }
+
     | Clear any existing target to ensure we find the nearest tribute master
     | This prevents issues when user has a non-tribute master NPC or other entity targeted
     /target clear
@@ -3216,9 +3297,6 @@ Sub AutoTribute
                     | Item marked TRIBUTE but has 0 tribute value - notify user
                     /call AnnounceBankSell "${tlTag} \aoWARNING: Item ${Me.Inventory[pack${packNum}].Item[${slotNum}].ItemLink[CLICKABLE]} \aois marked \ayTRIBUTE\ao but has tribute value \ar0\ao (cannot be tributed)"
                 }
-            } else /if (${showDebug} && ${itemLimitUpper.Length} && !${itemLimitUpper.Equal[NULL]}) {
-                | Debug: Show items with other INI values (not TRIBUTE)
-                /call AnnounceBankSell "${tlTag} \at[DEBUG] Item ${itemName} has INI value: ${itemLimitUpper} (not TRIBUTE - skipping)"
             }
         /next slotNum
     /next packNum
@@ -3274,9 +3352,6 @@ Sub AutoTribute
         /delay 2 !${Window[TributeMasterWnd].Open}
         /if (${Window[TributeMasterWnd].Open}) /windowstate TributeMasterWnd close
         /delay 5 !${Window[TributeMasterWnd].Open}
-    }
-/return
-
     }
 /return
 
@@ -4415,7 +4490,7 @@ Sub LootTheItem(int lootSlot, string thisName, int maxCount, string itemLimit)
         /if (${Cursor.ID}) /call ForceClearCursor
 
         | Alert when we just reached a numeric limit (obvious to user)
-        /if (${maxCount} < 999999) && (${maxCount} > 0) {
+        /if ((${maxCount} < 999999) && (${maxCount} > 0)) {
             /varset currentCount ${Math.Calc[${FindItemCount[=${thisName}]}+${FindItemBankCount[=${thisName}]}]}
             /if (${currentCount} >= ${maxCount} && (${showDebug} || ${announceSkipped})) {
                 /call AnnounceSkipped "${Target.ID}:${lootSlot}:${thisName}" "${tlTag} \ar*** LIMIT REACHED ***\aw You now have ${currentCount}/${maxCount} ${thisName}"
@@ -5407,6 +5482,40 @@ Sub NavToIDWithDoorsAndNudges(int targetID, float stopDist, int maxTicks)
     }
 
     /goto :NavIDLoop
+
+| ---------------------------------------------------------------------
+| NAV BACK TO GROUP LEADER
+| Called after sell/bank/tribute/unload to return bot to leader
+| Requires MQ2Nav. Skips if: not grouped, no leader, leader is self,
+|   leader out of range/zone, or nav path doesn't exist.
+| ---------------------------------------------------------------------
+Sub NavBackToGroupLeader
+    /if (!${Me.Grouped}) /return
+    /if (${Me.Feigning}) /return
+    /if (!${Group.Leader.ID}) /return
+    /if (${Group.Leader.ID} == ${Me.ID}) /return
+    /if (${Group.Leader.Zoning}) /return
+    /if (!${Group.Leader.Present}) /return
+
+    /declare navDist float local 30
+
+    /if (${Group.Leader.Distance} <= ${navDist}) {
+        /if (${showDebug}) /echo [turboLoot] NavBackToGroupLeader: Already within ${navDist} units of ${Group.Leader.Name}, skipping.
+        /return
+    }
+
+    /call AnnounceBankSellProgress "${tlTag} \ayNavigating back to group leader: ${Group.Leader.Name}..."
+
+    /target id ${Group.Leader.ID}
+    /delay 5 ${Target.ID}
+    /if (!${Target.ID}) /return
+
+    /call NavToIDWithDoorsAndNudges ${Group.Leader.ID} ${navDist} 600
+
+    /squelch /nav stop
+    /squelch /target clear
+    /if (${showDebug}) /echo [turboLoot] NavBackToGroupLeader: Done.
+/return
 
 | ---------------------------------------------------------------------
 | LOAD WILDCARDS FROM INI [Wildcards] SECTION
