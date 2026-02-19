@@ -1379,7 +1379,7 @@ Sub LoadSettings
         /varset announceBankSell "echo"
     }
 
-    /echo ${tlTag} \at[INI] \ag${iniFile}
+    /if (${showDebug}) /echo ${tlTag} \at[INI] \ag${iniFile}
     /if (${enableHighValue} && ${lootHighValueAll}) {
         /if (${showDebug}) /echo [turboLoot] High-value looting ENABLED: Looting ALL non-stackable items (no value threshold)
     } else /if (${enableHighValue} && ${minLootValue} > 0) {
@@ -1393,7 +1393,7 @@ Sub LoadSettings
     } else     /if (${lootStackable} && ${minStackableValue} <= 0) {
         /if (${showDebug}) /echo [turboLoot] Stackable looting ENABLED: Looting all stackable items (no value threshold)
     }
-    /if (${lootTribMinValue} > 0) {
+    /if (${lootTribMinValue} > 0 && ${showDebug}) {
         /echo [turboLoot] lootTribMinValue=${lootTribMinValue}: Looting unlisted items with tribute>=${lootTribMinValue} or value>=${lootTribMinValue}pp as TRIBUTE
     }
     
@@ -1806,12 +1806,12 @@ Sub BeginLooting
 | ---------------------------------------------------------------------
 :processItems
     /varset loottotal ${Corpse.Items}
-    /if (${lootTribMinValue} > 0 && ${loottotal} > 0) /echo [turboLoot] lootTribMinValue=${lootTribMinValue} active - will loot unlisted items with tribute/value >= threshold
+    /if (${lootTribMinValue} > 0 && ${loottotal} > 0 && ${showDebug}) /echo [turboLoot] lootTribMinValue=${lootTribMinValue} active - will loot unlisted items with tribute/value >= threshold
 
     /for lootslot 1 to ${loottotal}
-        | Process any pending lore block FIRST - before checking loot window
-        | This handles the case where lore denial closed the loot window
+        | Process events and clear cursor before each slot (prevents "cursor occupied" errors)
         /doevents
+        /if (${Cursor.ID}) /call ForceClearCursor
         /if (${LoreBlocked}) {
             /if (${showDebug}) /echo [turboLoot] Lore block detected at start of loop for slot ${lootslot}
             | Add to denied cache using last attempted item name
@@ -2017,7 +2017,8 @@ Sub BeginLooting
                 }
                 /if (${showDebug}) /echo [STACK] Unlisted stackable item ${lootName} worth ${itemValue}pp ${If[${meetsTribThreshold},(tribute),- looting due to LootStackable]}
                 /call CheckInventorySpace "${lootName}" ${lootslot}
-                /call LootTheItem ${lootslot} "${lootName}" 999999 "${If[${meetsTribThreshold},TRIBUTE,${itemLimit}]}"
+                | Pass STACK for unlisted so LootTheItem gets non-empty limitParam (empty can skip announcement on some MQ2 builds)
+                /call LootTheItem ${lootslot} "${lootName}" 999999 "${If[${meetsTribThreshold},TRIBUTE,${If[${itemLimit.Length},${itemLimit},STACK]}]}"
             }
             /if (${Skip}) /goto :DoneLooting
             /if (!${Corpse.Item[${lootslot}].ID}) /varset DidLootThisCorpse TRUE
@@ -4618,6 +4619,11 @@ Sub HandleQuantityWindow
     /squelch /notify QuantityWnd QTYW_Accept_Button leftmouseup
     /keypress ENTER
     /delay 3 !${Window[QuantityWnd].Open}
+    | Wait for item to reach inventory (prevents "cursor occupied" on next loot)
+    /if (${Cursor.ID}) {
+        /delay 5 !${Cursor.ID}
+        /if (${Cursor.ID}) /call ForceClearCursor
+    }
 
     /if (${Window[QuantityWnd].Open}) {
         /echo [turboLoot] ERROR: Quantity window stuck open. Aborting macro.
@@ -4774,18 +4780,10 @@ Sub Event_TooFar
 /return
 
 Sub Event_CursorOccupied
-    /if (${showDebug}) /echo [turboLoot] Cursor occupied error detected - clearing phantom cursor
-    /declare cTries int local 0
-    
-    /while (${cTries} < 3) {
-        /varcalc cTries ${cTries}+1
-        /autoinventory
-        /delay 1
-        /autoi
-        /delay 1
-    }
-    
-    /delay 1
+    /if (${showDebug}) /echo [turboLoot] Cursor occupied - clearing cursor
+    /call ForceClearCursor
+    /delay 2 !${Cursor.ID}
+    /if (${Cursor.ID}) /call ForceClearCursor
 /return
 
 
@@ -4940,11 +4938,10 @@ Sub ForceClearCursor
     /if (${Cursor.ID}) {
         /if (${showDebug}) /echo [turboLoot] Cursor has item: ${Cursor.Name} - clearing
         /autoinventory
-        | Conditional delay - exits early when cursor is empty (reduced from 10 to 5 ticks)
-        /delay 5 !${Cursor.ID}
+        /delay 3 !${Cursor.ID}
         /if (${Cursor.ID}) {
             /autoi
-            /delay 5 !${Cursor.ID}
+            /delay 3 !${Cursor.ID}
         }
     }
 /return
@@ -5577,8 +5574,8 @@ Sub LoadWildcards
     | Finalize
     /if (${wildcardPrefixes.Length}) {
         /varset wildcardPrefixes "${wildcardPrefixes}|"
-        /echo [turboLoot] Wildcards active: ${wildcardPrefixes}
-    } else {
+        /if (${showDebug}) /echo [turboLoot] Wildcards active: ${wildcardPrefixes}
+    } else /if (${showDebug}) {
         /echo [turboLoot] No wildcards loaded from [Wildcards] section.
     }
 /return
