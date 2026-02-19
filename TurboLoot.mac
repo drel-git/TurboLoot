@@ -1432,7 +1432,9 @@ Sub PreChecks
     /declare corpseCheckRetries int local 0
     /declare maxCorpseCheckRetries int local 2
 :checkCorpses
-    /if (!${SpawnCount[npccorpse radius ${lootDistance}]}) {
+    /declare corpseCount int local ${SpawnCount[npccorpse radius ${lootDistance}]}
+    /if (!${corpseCount}) /varset corpseCount ${SpawnCount[corpse radius ${lootDistance}]}
+    /if (!${corpseCount}) {
         /varcalc corpseCheckRetries ${corpseCheckRetries}+1
         /if (${corpseCheckRetries} <= ${maxCorpseCheckRetries}) {
             /if (${showDebug}) /echo [turboLoot] No corpses found within ${lootDistance}. Attempting spawn list refresh (retry ${corpseCheckRetries}/${maxCorpseCheckRetries})...
@@ -1478,8 +1480,10 @@ Sub PauseE3Logic
 | ---------------------------------------------------------------------
 Sub BeginLooting
     /hidecorpse looted
-    /echo ${tlTag} \ag[${Time}] Started Looting
+    /echo ${tlTag} \ag[${Time}] Started Looting \at(range: ${lootDistance} ft)
 
+    /declare corpseCount int local 0
+    /declare lookupName string local
     | Final sweep (optional): one extra retry pass when everything in range becomes alerted
     /declare finalSweepDone bool local FALSE
     /declare finalSweepNeeded bool local FALSE
@@ -1502,7 +1506,9 @@ Sub BeginLooting
         }
     }
 
-    /if (!${SpawnCount[npccorpse radius ${lootDistance}]}) {
+    /varset corpseCount ${SpawnCount[npccorpse radius ${lootDistance}]}
+    /if (!${corpseCount}) /varset corpseCount ${SpawnCount[corpse radius ${lootDistance}]}
+    /if (!${corpseCount}) {
         | If we've looted something, we're probably done. Otherwise, try refreshing spawn list once
         /if (!${DidLoot}) {
             /if (${showDebug}) /echo [turboLoot] No corpses found within ${lootDistance}. Attempting spawn list refresh...
@@ -1512,8 +1518,10 @@ Sub BeginLooting
             /delay 1
             /squelch /docommand #corpsefix
             /delay 1
-            | Re-check after refresh
-            /if (${SpawnCount[npccorpse radius ${lootDistance}]}) {
+            | Re-check after refresh (try both npccorpse and corpse)
+            /varset corpseCount ${SpawnCount[npccorpse radius ${lootDistance}]}
+            /if (!${corpseCount}) /varset corpseCount ${SpawnCount[corpse radius ${lootDistance}]}
+            /if (${corpseCount}) {
                 /if (${showDebug}) /echo [turboLoot] Spawn list refresh successful - found corpses
                 /goto :mainlootloop
             }
@@ -1530,7 +1538,9 @@ Sub BeginLooting
         /return
     }
     
-    /if (!${SpawnCount[npccorpse noalert ${AlertIndex} radius ${lootDistance}]}) {
+    /varset corpseCount ${SpawnCount[npccorpse noalert ${AlertIndex} radius ${lootDistance}]}
+    /if (!${corpseCount}) /varset corpseCount ${SpawnCount[corpse noalert ${AlertIndex} radius ${lootDistance}]}
+    /if (!${corpseCount}) {
         /if (${finalSweepEnabled} && ${finalSweepNeeded} && !${finalSweepDone}) {
             /varset finalSweepDone TRUE
             /if (${lootDistance} != ${sweepLootDistance}) /varset lootDistance ${sweepLootDistance}
@@ -1540,7 +1550,9 @@ Sub BeginLooting
         }
         /if (${showDebug}) /echo [turboLoot] All corpses in range are marked as alerted.
         /if (${DidLoot}) {
-            /if (!${SpawnCount[npccorpse noalert ${AlertIndex} radius ${lootDistance}]}) {
+            /varset corpseCount ${SpawnCount[npccorpse noalert ${AlertIndex} radius ${lootDistance}]}
+            /if (!${corpseCount}) /varset corpseCount ${SpawnCount[corpse noalert ${AlertIndex} radius ${lootDistance}]}
+            /if (!${corpseCount}) {
                 /if (${showDebug}) /echo [turboLoot] Still no unalerted corpses after brief check. Exiting.
                 /if (${Me.Grouped} && ${DidLoot}) /e3bc ${tlTag} [DONE LOOTING ${corpsesProcessed} CORPSES]
                 /if (${AlertIndex}) /squelch /alert clear ${AlertIndex}
@@ -1581,9 +1593,14 @@ Sub BeginLooting
     }
 
     /if (${Me.FreeInventory}) {
-        /if (${SpawnCount[npccorpse noalert ${AlertIndex} radius ${lootDistance}]} > 0) {
-            /target npccorpse noalert ${AlertIndex} radius ${lootDistance}
-            
+        /varset corpseCount ${SpawnCount[npccorpse noalert ${AlertIndex} radius ${lootDistance}]}
+        /if (!${corpseCount}) /varset corpseCount ${SpawnCount[corpse noalert ${AlertIndex} radius ${lootDistance}]}
+        /if (${corpseCount} > 0) {
+            /if (${SpawnCount[npccorpse noalert ${AlertIndex} radius ${lootDistance}]} > 0) {
+                /target npccorpse noalert ${AlertIndex} radius ${lootDistance}
+            } else {
+                /target corpse noalert ${AlertIndex} radius ${lootDistance}
+            }
             | If targeting failed but SpawnCount says corpses exist, try refreshing spawn list once per loop iteration
             /if (!${Target.ID} || !${Target.Type.Equal[Corpse]}) {
                 /declare targetingRefreshDone bool local FALSE
@@ -1596,9 +1613,11 @@ Sub BeginLooting
                     /squelch /docommand #corpsefix
                     /delay 1
                     /varset targetingRefreshDone TRUE
-                    | Retry targeting
+                    | Retry targeting (try both spawn types)
                     /if (${SpawnCount[npccorpse noalert ${AlertIndex} radius ${lootDistance}]} > 0) {
                         /target npccorpse noalert ${AlertIndex} radius ${lootDistance}
+                    } else /if (${SpawnCount[corpse noalert ${AlertIndex} radius ${lootDistance}]} > 0) {
+                        /target corpse noalert ${AlertIndex} radius ${lootDistance}
                     }
                 }
             }
@@ -1841,34 +1860,19 @@ Sub BeginLooting
         }
         /varset itemValue ${Math.Calc[${Corpse.Item[${lootslot}].Value} / 1000]}
         /varset tribVal ${Int[${Corpse.Item[${lootslot}].Tribute}]}
-        | Direct INI lookup (like turboLoot359Final.mac) with case-insensitive fallback
-        | Use 4th param "" so key-not-found returns "" not "NOTFOUND" (which would bypass TRIBUTE-VALUE)
-        /varset itemLimit ${Ini[${iniFile},ItemLimits,${lootName},]}
-        | Only normalize if we got a result (skip unnecessary string operations)
+        | ItemLimits lookup: use IniGetStringOrEmpty (same as Settings - strips comments, trims)
+        /varset lookupName ${TrimSpaces[${lootName}]}
+        /varset itemLimit ${IniGetStringOrEmpty[ItemLimits,${lookupName}]}
+        /if (!${itemLimit.Length}) /varset itemLimit ${IniGetStringOrEmpty[ItemLimits,${lookupName.Upper}]}
+        /if (!${itemLimit.Length}) /varset itemLimit ${IniGetStringOrEmpty[ItemLimits,${lookupName.Lower}]}
+        /if (!${itemLimit.Length}) /varset itemLimit ${IniGetStringOrEmpty[Item Limits,${lookupName}]}
         /if (${itemLimit.Length} && !${itemLimit.Equal[NULL]}) {
             /varset itemLimitUpper ${itemLimit.Upper}
             /varset itemLimitUpper ${itemLimitUpper.Replace[ ,]}
             /if (${itemLimitUpper.Equal[SKIP]}) /varset itemLimitUpper IGNORE
         } else {
-            | Exact match failed, try uppercase
-            /varset itemLimit ${Ini[${iniFile},ItemLimits,${lootName.Upper},]}
-            /if (${itemLimit.Length} && !${itemLimit.Equal[NULL]}) {
-                /varset itemLimitUpper ${itemLimit.Upper}
-                /varset itemLimitUpper ${itemLimitUpper.Replace[ ,]}
-                /if (${itemLimitUpper.Equal[SKIP]}) /varset itemLimitUpper IGNORE
-            } else {
-                | Uppercase failed, try lowercase
-                /varset itemLimit ${Ini[${iniFile},ItemLimits,${lootName.Lower},]}
-                /if (${itemLimit.Length} && !${itemLimit.Equal[NULL]}) {
-                    /varset itemLimitUpper ${itemLimit.Upper}
-                    /varset itemLimitUpper ${itemLimitUpper.Replace[ ,]}
-                    /if (${itemLimitUpper.Equal[SKIP]}) /varset itemLimitUpper IGNORE
-                } else {
-                    | All lookups failed - clear itemLimit/itemLimitUpper
-                    /varset itemLimit ""
-                    /varset itemLimitUpper ""
-                }
-            }
+            /varset itemLimit ""
+            /varset itemLimitUpper ""
         }
         | Final check: clear if empty/NULL/0/NOTFOUND (like turboLoot359Final.mac does)
         | NOTFOUND: MQ2 Ini returns this when key missing and no default given
@@ -2040,7 +2044,8 @@ Sub BeginLooting
 
         | Process ALL, numeric limits, SELL, KEEP, BANK, and TRIBUTE items
         /if (${showDebug} && ${itemLimitUpper.Equal[SELL]}) /echo [DEBUG] Checking SELL item ${lootName} - itemLimitUpper="${itemLimitUpper}" - condition check
-        /if (${itemLimit.Length} && (${itemLimitUpper.Equal[ALL]} || ${itemLimitUpper.Equal[SELL]} || ${itemLimitUpper.Equal[KEEP]} || ${itemLimitUpper.Equal[BANK]} || ${itemLimitUpper.Equal[TRIBUTE]} || (${Int[${itemLimit}]} > 0))) {            /if (${showDebug} && ${itemLimitUpper.Equal[SELL]}) /echo [DEBUG] SELL item ${lootName} passed condition check, calling ProcessLootItem
+        /if (${itemLimit.Length} && (${itemLimitUpper.Equal[ALL]} || ${itemLimitUpper.Equal[SELL]} || ${itemLimitUpper.Equal[KEEP]} || ${itemLimitUpper.Equal[BANK]} || ${itemLimitUpper.Equal[TRIBUTE]} || (${Int[${itemLimit}]} > 0))) {
+            /if (${showDebug} && ${itemLimitUpper.Equal[SELL]}) /echo [DEBUG] SELL item ${lootName} passed condition check, calling ProcessLootItem
             /call ProcessLootItem ${lootslot} "${itemLimit}"
             /if (${Skip}) /goto :DoneLooting
             /if (!${Corpse.Item[${lootslot}].ID}) /varset DidLootThisCorpse TRUE
