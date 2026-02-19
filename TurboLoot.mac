@@ -804,8 +804,13 @@ Sub LoadSettings
     | lootTribMinValue - loot unlisted items that meet a minimum tribute value threshold
     /declare lootTribMinValueSetting string local ${IniGetStringOrEmpty[Settings,lootTribMinValue]}
     /if (${lootTribMinValueSetting.Length}) {
-        /varset lootTribMinValue ${Int[${lootTribMinValueSetting}]}
-        /if (${lootTribMinValue} < 0) /varset lootTribMinValue 0
+        /declare lootTribMinUpper string local ${lootTribMinValueSetting.Upper.Replace[ ,]}
+        /if (${lootTribMinUpper.Equal[OFF]} || ${lootTribMinUpper.Equal[NO]} || ${lootTribMinUpper.Equal[FALSE]} || ${lootTribMinUpper.Equal[0]}) {
+            /varset lootTribMinValue 0
+        } else {
+            /varset lootTribMinValue ${Int[${lootTribMinValueSetting}]}
+            /if (${lootTribMinValue} < 0) /varset lootTribMinValue 0
+        }
     } else {
         /varset lootTribMinValue 0
     }
