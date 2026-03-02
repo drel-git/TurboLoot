@@ -1,5 +1,5 @@
-| TurboKey.mac v3.7.5
-| Usage: /mac TurboKey KEEP|SELL|IGNORE|BANK|TRIBUTE|DESTROY
+| TurboKey.mac v3.7.6
+| Usage: /mac TurboKey KEEP|SELL|IGNORE|SKIP|BANK|TRIBUTE|ALL|DESTROY
 | Writes to: turboloot.ini -> [ItemLimits] (same path as TurboLoot)
 | For DESTROY/IGNORE: marks in INI then destroys item on cursor
 | For others: marks in INI then /autoinv
@@ -16,13 +16,15 @@ Sub Main(string RuleIn)
     /varset tlIniFile "../Macros/turboloot.ini"
   }
 
-  /if (!${rule.Length}) {
-    /echo \arUsage: /mac TurboKey KEEP|SELL|IGNORE|BANK|TRIBUTE|ALL|DESTROY
+  /if (!${rule.Length} || ${rule.Equal[HELP]}) {
+    /echo \at[TurboKey] \auUsage:\ax /mac TurboKey \agKEEP\ax|\agSELL\ax|\apBANK\ax|\ayTRIBUTE\ax|\arDESTROY\ax|\aoIGNORE\ax|\aoSKIP\ax|\awALL\ax
+    /echo \at[TurboKey] \awHold item on cursor, then run command to add it to turboloot.ini\ax
+    /echo \at[TurboKey] \awSee /mac turboloot help for full command list\ax
     /return
   }
 
-  /if (!${rule.Equal[KEEP]} && !${rule.Equal[SELL]} && !${rule.Equal[IGNORE]} && !${rule.Equal[BANK]} && !${rule.Equal[TRIBUTE]} && !${rule.Equal[ALL]} && !${rule.Equal[DESTROY]}) {
-    /echo \arInvalid rule: \ay${rule}\ar. Valid: KEEP SELL IGNORE BANK TRIBUTE ALL DESTROY
+  /if (!${rule.Equal[KEEP]} && !${rule.Equal[SELL]} && !${rule.Equal[IGNORE]} && !${rule.Equal[SKIP]} && !${rule.Equal[BANK]} && !${rule.Equal[TRIBUTE]} && !${rule.Equal[ALL]} && !${rule.Equal[DESTROY]}) {
+    /echo \arInvalid rule: \ay${rule}\ar. Valid: KEEP SELL IGNORE SKIP BANK TRIBUTE ALL DESTROY
     /return
   }
 
@@ -44,7 +46,7 @@ Sub Main(string RuleIn)
   }
 
   | DESTROY and IGNORE: destroy item on cursor (fast path)
-  /if (${rule.Equal[DESTROY]} || ${rule.Equal[IGNORE]}) {
+  /if (${rule.Equal[DESTROY]} || ${rule.Equal[IGNORE]} || ${rule.Equal[SKIP]}) {
     /destroy
     /delay 1
     /if (${Window[ConfirmationDialogBox].Open}) /notify ConfirmationDialogBox Yes_Button leftmouseup
