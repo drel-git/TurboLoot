@@ -6,7 +6,7 @@
 |   |_|   \____/|_|  \_\____/ \____/|______\____/ \____/  |_|
 |------------------------------------------------------------------>
 
-| turboLoot 3.7.7
+| turboLoot 3.7.8
 | Made by: <Lederhosen>, Drel, Jabs, Matde, Belakk, Veldrinn, Zhugg, Kroaking, Jeremy
 
 #turbo 100
@@ -313,6 +313,7 @@ Sub InitStateMinimal
     /declare itemsDestroyed int outer 0
     /declare tlTag string outer "\at[turboLoot]"
     /declare announceDefaultTo string outer "echo"
+    /declare announceDoneLootingTo string outer "e3bc"
     /declare BankContainerWarnedKeys string outer ""
     /declare abortingMacro bool outer FALSE
     /declare lootNoDropPromptReset string outer "always"
