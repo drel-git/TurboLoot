@@ -243,7 +243,7 @@ Tloot=slain
 ```ini
 Tloot=/timed 10 /if (!${Spawn[npc radius 50].Aggressive} && ${Turbo} && ${SpawnCount[npccorpse radius 50]}) /e3bct YOUR_LOOTER_NAME /mac turboLoot
 ```
-> Replace `YOUR_LOOTER_NAME` with the character name of whoever should do the looting.
+> Replace `YOUR_LOOTER_NAME` with the character name of whoever should do the looting. Change the number after radius to whatever works for you.
 
 **How it works:** When the game says something was "slain," the tank waits 1 second, checks that no aggressive mobs are within 50 units, checks that the `Turbo` toggle is on, checks that there's a corpse nearby, and then tells the looter character to run TurboLoot.
 
