@@ -95,10 +95,9 @@ lootNoDropPromptReset=always
 | `lootRadiusFeet` | 100 | How far (in feet) TurboLoot will search for corpses |
 | `inventoryWarnSlots` | 5 | Warns you when you have this many free inventory slots left |
 | `debug` | OFF | Enable debug output |
-| `logToFile` | OFF | Write debug log to `Logs/TurboLoot.mac.log` |
-| `lootHighValueMinPP` | 0 | Loot non-stackables worth ≥ this many pp. `0` = disabled |
-| `lootStackableMinPP` | 0 | Same but for stackable items |
-| `lootTribMinPP` | 100 | Minimum pp value to tribute unlisted items |
+| `logToFile` | ON | Write debug log to `Logs/TurboLoot.mac.log` |
+| `lootHighValueMinPP` | 50 | Loot non-stackables worth ≥ this many pp. `0` = disabled |
+| `lootStackableMinPP` | 50 | Same but for stackable items |
 | `sellUnlistedStackable` | OFF | When selling, also sell unlisted stackable items |
 | `sellUnlistedItems` | OFF | When selling, also sell items not in your INI (be careful!) |
 | `sellWildcards` | OFF | Auto-sell wildcard items unless marked otherwise |
