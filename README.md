@@ -92,25 +92,30 @@ lootNoDropPromptReset=always
 
 | Setting | Default | What It Does |
 |---|---|---|
-| `lootRadiusFeet` | 50 | How far (in feet) TurboLoot will search for corpses |
+| `lootRadiusFeet` | 100 | How far (in feet) TurboLoot will search for corpses |
 | `inventoryWarnSlots` | 5 | Warns you when you have this many free inventory slots left |
-| `lootHighValueMinPP` | 50 | Loot non-stackables worth ≥ this many pp. `0` = disabled, `1` = loot everything |
-| `lootStackableMinPP` | 50 | Same idea but for stackable items |
-| `sellUnlistedItems` | OFF | When selling, also sell items not in your INI (be careful with this!) |
+| `debug` | OFF | Enable debug output |
+| `logToFile` | OFF | Write debug log to `Logs/TurboLoot.mac.log` |
+| `lootHighValueMinPP` | 0 | Loot non-stackables worth ≥ this many pp. `0` = disabled |
+| `lootStackableMinPP` | 0 | Same but for stackable items |
+| `lootTribMinPP` | 100 | Minimum pp value to tribute unlisted items |
 | `sellUnlistedStackable` | OFF | When selling, also sell unlisted stackable items |
-| `sellWildcards` | OFF | Auto-sell wildcard items (spell scrolls, etc.) unless marked otherwise |
-| `bankWildcards` | ON | Auto-bank wildcard items (spell scrolls, etc.) unless marked otherwise |
+| `sellUnlistedItems` | OFF | When selling, also sell items not in your INI (be careful!) |
+| `sellWildcards` | OFF | Auto-sell wildcard items unless marked otherwise |
+| `bankWildcards` | ON | Auto-bank wildcard items unless marked otherwise |
 | `StopLootWhenAttacked` | OFF | Stop looting if hostile mobs are detected nearby |
-| `announceDefaultTo` | e3bc | Where messages go: `echo` (local MQ window), `e3bc` (MQ network), `say`, `gsay`, `rsay`, or `t CharName` |
-| `announceSkipTo` | gsay | Where skip messages go - `gsay` lets your group see what was left behind |
+| `returnToLeader` | ON | Return to group leader after looting |
+| `corpseHideMode` | ALL | Who corpses are hidden from: `ALL`, `GROUP`, `SELF`, `OFF` |
+| `announceDefaultTo` | e3bc | Where messages go: `echo`, `e3bc`, `say`, `gsay`, `rsay`, `t CharName` |
+| `announceSkipTo` | gsay | Where skip messages go — `gsay` lets your group see what was left behind - use gsay if you use the LazBiS lua |
+| `announceBankSellPerItem` | ON | Announce each item individually during bank/sell/tribute operations |
 | `announceLoot` | ON | Announce when items are looted |
 | `announceDestroy` | ON | Announce when items are destroyed |
 | `announceRunSummary` | ON | Show a summary at the end of each loot run |
-| `announceBankSellPerItem` | ON | Announce each item individually during bank/sell/tribute operations |
 | `autoRsayInRaid` | OFF | Auto-switch announcements to `/rsay` when in a raid |
+| `announceDoneLootingTo` | e3bc | Where DONE LOOTING messages go:  `echo`, `e3bc`, `say`, `gsay`, `rsay`, `t CharName` |
 | `lootNoDropPrompt` | never | No-drop behavior: `prompt` (ask), `always` (grab it), `never` (leave it) |
-| (LEGACY, not needed) `followRestoreMode` | NONE | Options: `FOLLOWME`, `CHASEME`, `NONE` - restore follow after looting |
-| (LEGACY, not needed) `followRestoreDriver` | AUTO | Who to follow: `AUTO` (group leader) or a specific character name |
+| `lootNoDropPromptReset` | always | Whether to reset no-drop prompt setting after each run |
 
 ### [ItemLimits] - Your Loot Rules
 
