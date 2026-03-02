@@ -427,9 +427,9 @@ Comment out or remove every line in `[Wildcards]`. TurboLoot will only loot item
 ## 10. Tips
 
 - **Start simple.** Don't fill out the whole INI upfront if you're overwhelmed. Just set your `lootHighValueMinPP` threshold and use TurboKey to categorize items as you encounter them.
-- **Use `/turboreport` first.** Before your first `/turbosell`, run the report to preview what would be sold. Better safe than sorry.
+- **Use `/mac turboloot report` first.** Before your first `/mac turboloot sell` or `/mac turboloot unload`, run the report to preview what would be sold. Better safe than sorry.
 - **`announceDefaultTo=e3bc`** is great for multiboxing - all your characters see loot announcements in the MQ window.
 - **`announceSkipTo=gsay`** lets your group see what's being left on corpses, handy for anyone who wants to grab something. Also good to trigger lazbis.
 - **`IGNORE` is your friend** for spammy items you never want to see again (Bone Chips in your 50s, etc.).
-- **`/turbounload` is the town command.** Park near a banker, tribute master, and vendor, then run it to handle bank -> tribute -> sell -> destroy all at once.
+- **`/mac turboloot unload` is the town command.** Park near a banker, tribute master, and vendor, then run it to handle bank -> tribute -> sell -> destroy all at once.
 - **`bankWildcards=ON`** and **`sellWildcards=ON`** means spell scrolls, tomes, and skill-ups get auto banked or sold unless you've given them a different rule - great for alts.
