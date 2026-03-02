@@ -221,7 +221,7 @@ Sub InitState
     /declare corpseID int outer 0
     /declare midRunRefreshInterval int outer 5
     /declare lastMidRunRefresh int outer 0
-    /declare corpseHideMode string outer "ALL"
+    /declare corpseHideMode string outer "LOOTED"
 
     /declare loottotal int outer
     /declare lootslot int outer
@@ -1144,21 +1144,23 @@ Sub LoadSettings
             /varset corpseHideMode GROUP
         } else /if (${corpseHideModeCheck.Equal[SELF]}) {
             /varset corpseHideMode SELF
+        } else /if (${corpseHideModeCheck.Equal[LOOTED]}) {
+            /varset corpseHideMode LOOTED
         } else /if (${corpseHideModeCheck.Equal[OFF]} || ${corpseHideModeCheck.Equal[0]}) {
             /varset corpseHideMode OFF
         } else {
-            /echo [turboLoot] WARNING: corpseHideMode "${corpseHideModeSetting}" is invalid. Valid values: ALL, GROUP, SELF, OFF. Defaulting to ALL.
-            /varset corpseHideMode ALL
+            /echo [turboLoot] WARNING: corpseHideMode "${corpseHideModeSetting}" is invalid. Valid values: ALL, GROUP, SELF, LOOTED, OFF. Defaulting to LOOTED.
+            /varset corpseHideMode LOOTED
         }
     } else {
         | No corpseHideMode set - check if user has legacy keys and warn
         /declare legacyHide string local ${IniGetStringOrEmpty[Settings,hideLootedCorpses]}
         /declare legacyGroup string local ${IniGetStringOrEmpty[Settings,groupHideCorpseAll]}
         /if (${legacyHide.Length} || ${legacyGroup.Length}) {
-            /echo [turboLoot] WARNING: hideLootedCorpses and groupHideCorpseAll are no longer supported. Please update your INI to use corpseHideMode=ALL/GROUP/SELF/OFF. Defaulting to ALL.
-            /squelch /docommand /e3bc [turboLoot] WARNING: hideLootedCorpses and groupHideCorpseAll are no longer supported. Update INI to use corpseHideMode=ALL/GROUP/SELF/OFF
+            /echo [turboLoot] WARNING: hideLootedCorpses and groupHideCorpseAll are no longer supported. Please update your INI to use corpseHideMode=ALL/GROUP/SELF/LOOTED/OFF. Defaulting to LOOTED.
+            /squelch /docommand /e3bc [turboLoot] WARNING: hideLootedCorpses and groupHideCorpseAll are no longer supported. Update INI to use corpseHideMode=ALL/GROUP/SELF/LOOTED/OFF
         }
-        /varset corpseHideMode ALL
+        /varset corpseHideMode LOOTED
     }
 
     /declare useNavSetting string local ${IniGetStringOrEmpty[Settings,UseNavForCorpses]}
@@ -1451,7 +1453,7 @@ Sub PreChecks
             /delay 1
             /squelch /hidecorpse none
             /delay 1
-            /if (${Defined[corpseHideMode]} && (${corpseHideMode.Equal[ALL]} || ${corpseHideMode.Equal[SELF]})) /hidecorpse looted
+            /if (${Defined[corpseHideMode]} && (${corpseHideMode.Equal[ALL]} || ${corpseHideMode.Equal[SELF]} || ${corpseHideMode.Equal[LOOTED]})) /hidecorpse looted
             | Try #corpsefix if available (MQ2 command to refresh corpse data)
             /squelch /docommand #corpsefix
             /delay 1
@@ -1486,7 +1488,7 @@ Sub PauseE3Logic
 | BEGIN LOOTING
 | ---------------------------------------------------------------------
 Sub BeginLooting
-    /if (${corpseHideMode.Equal[ALL]} || ${corpseHideMode.Equal[SELF]}) /squelch /hidecorpse looted
+    /if (${corpseHideMode.Equal[ALL]} || ${corpseHideMode.Equal[SELF]} || ${corpseHideMode.Equal[LOOTED]}) /squelch /hidecorpse looted
     /varset LoreDeniedNames ""
     /echo ${tlTag} \ag[${Time}] Started Looting \at(range: ${lootDistance} ft)${If[${fastLootMode},\ao [FastLootMode]\ax,]}${If[${RightClickLoot},\ao [RightClickLoot]\ax,]}${If[${corpseHideMode.Equal[OFF]},\ar [corpseHideMode=OFF]\ax,]}
     /varset minFreeSlotsDuringLoot ${Me.FreeInventory}
@@ -1514,7 +1516,7 @@ Sub BeginLooting
             /delay 1
             /squelch /hidecorpse none
             /delay 3
-            /if (${corpseHideMode.Equal[ALL]} || ${corpseHideMode.Equal[SELF]}) /squelch /hidecorpse looted
+            /if (${corpseHideMode.Equal[ALL]} || ${corpseHideMode.Equal[SELF]} || ${corpseHideMode.Equal[LOOTED]}) /squelch /hidecorpse looted
         }
     }
 
@@ -1540,7 +1542,7 @@ Sub BeginLooting
             /delay 1
             /squelch /hidecorpse none
             /delay 1
-            /if (${corpseHideMode.Equal[ALL]} || ${corpseHideMode.Equal[SELF]}) /squelch /hidecorpse looted
+            /if (${corpseHideMode.Equal[ALL]} || ${corpseHideMode.Equal[SELF]} || ${corpseHideMode.Equal[LOOTED]}) /squelch /hidecorpse looted
             /squelch /docommand #corpsefix
             /delay 1
             | Re-check after refresh (try both npccorpse and corpse)
@@ -1658,7 +1660,7 @@ Sub BeginLooting
                     /delay 1
                     /squelch /hidecorpse none
                     /delay 1
-                    /if (${corpseHideMode.Equal[ALL]} || ${corpseHideMode.Equal[SELF]}) /squelch /hidecorpse looted
+                    /if (${corpseHideMode.Equal[ALL]} || ${corpseHideMode.Equal[SELF]} || ${corpseHideMode.Equal[LOOTED]}) /squelch /hidecorpse looted
                     /squelch /docommand #corpsefix
                     /delay 1
                     /varset targetingRefreshDone TRUE
@@ -2250,7 +2252,7 @@ Sub BeginLooting
     /if (${showDebug} || ${logToFile}) /call LogDebug "[turboLoot] No corpses found within ${lootDistance}. Exiting.""
     /if (${Me.Grouped} && ${DidLoot}) /call Announce "${announceDoneLootingTo}" "${tlTag} [DONE LOOTING ${corpsesProcessed} CORPSES]"
     | Safeguard: wait 2s, check for new unprocessed corpses before hiding (avoids hiding during combat)
-    /if (!${corpseHideMode.Equal[OFF]} && ${DidLoot}) {
+    /if (!${corpseHideMode.Equal[OFF]} && !${corpseHideMode.Equal[LOOTED]} && ${DidLoot}) {
         /delay 2
         /if (${SpawnCount[npccorpse noalert ${AlertIndex} radius ${lootDistance}]} || ${SpawnCount[corpse noalert ${AlertIndex} radius ${lootDistance}]}) {
             /varset endConfirm 0
