@@ -64,7 +64,6 @@ LogToFile=ON
 ; --Looting & Selling Rules--
 lootHighValueMinPP=50
 lootStackableMinPP=50
-lootTribMinValue=100
 sellUnlistedStackable=OFF
 sellUnlistedItems=OFF
 sellWildcards=OFF
