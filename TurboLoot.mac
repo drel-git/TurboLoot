@@ -6,7 +6,7 @@
 |   |_|   \____/|_|  \_\____/ \____/|______\____/ \____/  |_|
 |------------------------------------------------------------------>
 
-| turboLoot 3.7.6
+| turboLoot 3.7.7
 | Made by: <Lederhosen>, Drel, Jabs, Matde, Belakk, Veldrinn, Zhugg, Kroaking, Jeremy
 
 #turbo 100
@@ -1900,18 +1900,22 @@ Sub BeginLooting
 
                 /varset loottotal ${Corpse.Items}
                 /varset _itemWait 0
-                /while (${loottotal}<=0 && ${_itemWait} < 20 && ${Window[LootWnd].Open}) {
-                    /if (${showDebug} || ${logToFile}) /call LogDebug "[turboLoot] Corpse.Items=0, waiting for window to populate (${_itemWait})..."
+                /if (${loottotal}<=0 && ${Window[LootWnd].Open}) {
+                    /if (${showDebug} || ${logToFile}) /call LogDebug "[turboLoot] Corpse.Items=0, waiting for window to populate..."
+                }
+                /while (${loottotal}<=0 && ${_itemWait} < 15 && ${Window[LootWnd].Open}) {
                     /delay ${If[${fastLootMode},1,2]}
                     /varset loottotal ${Corpse.Items}
                     /varcalc _itemWait ${_itemWait}+1
                 }
                 /if (${loottotal}<=0) {
+                    /if (${showDebug} || ${logToFile}) /call LogDebug "[turboLoot] Corpse.Items=0 after ${_itemWait} waits - closing (coin-only or empty)"
                     /if (${Target.ID}) /squelch /alert add ${AlertIndex} id ${Target.ID}
                     /notify LootWnd DoneButton leftmouseup
                     /delay 1
                     /goto :mainlootloop
                 }
+                /if (${showDebug} || ${logToFile}) /call LogDebug "[turboLoot] Corpse.Items=${loottotal} after ${_itemWait} waits"
 
                 /docommand /lootnodrop ${lootNoDropPrompt}
                 
