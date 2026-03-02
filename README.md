@@ -70,7 +70,7 @@ sellWildcards=OFF
 bankWildcards=OFF
 StopLootWhenAttacked=ON
 returnToLeader=ON
-corpseHideMode=ALL
+corpseHideMode=LOOTED
 
 ; --Announcements (where messages go)--
 announceDefaultTo=e3bc
@@ -94,7 +94,7 @@ lootNoDropPromptReset=always
 | `lootRadiusFeet` | 100 | How far (in feet) TurboLoot will search for corpses |
 | `inventoryWarnSlots` | 5 | Warns you when you have this many free inventory slots left |
 | `debug` | OFF | Enable debug output |
-| `logToFile` | ON | Write debug log to `Logs/TurboLoot.mac.log` |
+| `LogToFile` | ON | Write debug log to `Logs/TurboLoot.mac.log` |
 | `lootHighValueMinPP` | 50 | Loot non-stackables worth ≥ this many pp. `0` = disabled |
 | `lootStackableMinPP` | 50 | Same but for stackable items |
 | `sellUnlistedStackable` | OFF | When selling, also sell unlisted stackable items |
@@ -103,7 +103,7 @@ lootNoDropPromptReset=always
 | `bankWildcards` | ON | Auto-bank wildcard items unless marked otherwise |
 | `StopLootWhenAttacked` | OFF | Stop looting if hostile mobs are detected nearby |
 | `returnToLeader` | ON | Return to group leader after looting |
-| `corpseHideMode` | ALL | Who corpses are hidden from: `ALL`, `GROUP`, `SELF`, `OFF` |
+| `corpseHideMode` | ALL | Who corpses are hidden from: `LOOTED`, `ALL`, `GROUP`, `SELF`, `OFF` |
 | `announceDefaultTo` | e3bc | Where messages go: `echo`, `e3bc`, `say`, `gsay`, `rsay`, `t CharName` |
 | `announceSkipTo` | gsay | Where skip messages go — `gsay` lets your group see what was left behind - use gsay if you use the LazBiS lua |
 | `announceBankSellPerItem` | ON | Announce each item individually during bank/sell/tribute operations |
@@ -114,6 +114,7 @@ lootNoDropPromptReset=always
 | `announceDoneLootingTo` | e3bc | Where DONE LOOTING messages go:  `echo`, `e3bc`, `say`, `gsay`, `rsay`, `t CharName` |
 | `lootNoDropPrompt` | never | No-drop behavior: `prompt` (ask), `always` (grab it), `never` (leave it) |
 | `lootNoDropPromptReset` | always | Whether to reset no-drop prompt setting after each run |
+| `FastLootMode` | ON | Use fast looting method. Set to OFF if experiencing loot issues on laggy servers |
 
 ### [ItemLimits] - Your Loot Rules
 
