@@ -225,7 +225,7 @@ Where `RULE` is one of:
 
 ## 7. Auto-Looting Setup (E3Next)
 
-This is the real power - TurboLoot runs automatically whenever your tank kills something.
+Set up TurboLoot runs automatically to run automatically
 
 ### Prerequisites
 - `TurboLoot.mac` and `turboloot.ini` are installed (you can verify with `/mac turboLoot`)
