@@ -56,9 +56,10 @@ The INI has two sections: **`[Settings]`** and **`[ItemLimits]`**.
 ```ini
 [Settings]
 ; --Core--
-lootRadiusFeet=50
+lootRadiusFeet=100
 inventoryWarnSlots=5
 debug=OFF
+LogToFile=ON
 
 ; --Looting & Selling Rules--
 lootHighValueMinPP=50
@@ -70,6 +71,7 @@ sellWildcards=OFF
 bankWildcards=OFF
 StopLootWhenAttacked=ON
 returnToLeader=ON
+corpseHideMode=ALL
 
 ; --Announcements (where messages go)--
 announceDefaultTo=e3bc
@@ -79,6 +81,7 @@ announceLoot=ON
 announceDestroy=ON
 announceRunSummary=ON
 autoRsayInRaid=OFF
+announceDoneLootingTo=e3bc
 
 ; --Advanced--
 lootNoDropPrompt=never
