@@ -81,6 +81,40 @@ Bank pulls into bags (or tell others to pull).
 | `/mac turbogive bank NAME` | **You** pull NAME’s items from **your** bank |
 | `/mac turbogive bank tell NAME` | Tell one bot to pull **their** items from **their** bank |
 
+### Coin & Diamond Coins
+
+Send or collect plat and Diamond Coins.
+
+| Command                               | What it does                                     |
+| ------------------------------------- | ------------------------------------------------ |
+| `/mac turbogive CHARNAME cash`        | Send all available plat to CHARNAME              |
+| `/mac turbogive CHARNAME plat`        | Send all available plat to CHARNAME              |
+| `/mac turbogive CHARNAME pp`          | Send all available plat to CHARNAME              |
+| `/mac turbogive CHARNAME cash 500`    | Send exactly 500 plat to CHARNAME                |
+| `/mac turbogive CHARNAME pp 500`      | Send exactly 500 plat to CHARNAME                |
+| `/mac turbogive CHARNAME dc`          | Send all available Diamond Coins to CHARNAME     |
+| `/mac turbogive CHARNAME dc 100`      | Send exactly 100 Diamond Coins to CHARNAME       |
+| `/mac turbogive collect cash`         | Group sends you their available plat             |
+| `/mac turbogive collect cash 500`     | Group sends you 500 plat each                    |
+| `/mac turbogive collect cash all`     | All online e3 bots send you their available plat |
+| `/mac turbogive collect cash all 500` | All online e3 bots send you 500 plat each        |
+| `/lua run turbo_collect_dc`           | Collect all Diamond Coins from online bots       |
+
+### NPC Hand-in
+
+Hand items or coins to your current target, usually an NPC.
+
+| Command                                                     | What it does                                                                                   |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `/mac turbogive handin "Item Name" #`                       | Hand # of Item Name to your current target                                                     |
+| `/mac turbogive handin "Item Name" # destroy`               | Hand # of Item Name to your current target, then destroy leftovers if needed                   |
+| `/mac turbogive handin pp #`                                | Hand # plat to your current target                                                             |
+| `/mac turbogive handin gp #`                                | Hand # gold to your current target                                                             |
+| `/mac turbogive handin sp #`                                | Hand # silver to your current target                                                           |
+| `/mac turbogive handin cp #`                                | Hand # copper to your current target                                                           |
+| `/mac turbogive handin tell CHARNAME "Item Name" #`         | Tell CHARNAME to hand # of Item Name to their current target                                   |
+| `/mac turbogive handin tell CHARNAME "Item Name" # destroy` | Tell CHARNAME to hand # of Item Name to their current target, then destroy leftovers if needed |
+
 ### Setup & info
 
 | Command | What it does |
